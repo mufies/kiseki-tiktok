@@ -1,0 +1,29 @@
+# application.yml
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/userdb
+    username: postgres
+    password: 123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    open-in-view: false
+
+  mvc:
+    pathmatcher:
+      use-suffix-pattern: false
+
+jwt:
+  secret: a4e3fdb116dcb8540a3f57c676b5faa0764dbcd2fa489a9b28ac2900cb6cfa18
+  access-token-expiry: 900000   
+  refresh-token-expiry: 30      
+
+server:
+  port: 8081
