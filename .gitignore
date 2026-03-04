@@ -23,6 +23,8 @@ go.work
 !.env.example
 !.env.sample
 
+
+
 # IDE and OS files
 .idea/
 .vscode/

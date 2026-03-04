@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"mime/multipart"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kiseki/video-service/internal/model"
@@ -57,3 +58,31 @@ func (s *VideoService) Upload(
 	}
 	return video, nil
 }
+
+func (s *VideoService) GetByID(id uuid.UUID) (*model.Video, string, error) {
+	video, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	
+	url, err := s.minioClient.PresignedGetObject(
+		context.Background(),
+		s.bucket,
+		video.FileName,
+		15*time.Minute,
+		nil,
+	)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	return video, url.String(), nil
+}
+
+func (s *VideoService) GetByOwner (id uuid.UUID) ([]model.Video, error) {
+	return s.repo.FindByOwnerID(id)
+}
+
+
