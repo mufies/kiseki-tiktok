@@ -10,7 +10,7 @@ import com.kiseki.userservice.dto.request.UpdateProfileRequest;
 import java.util.List;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 

@@ -25,7 +25,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("../../video-service/.env"); err != nil {
 		log.Println("No .env file, using enviroment variables")
 	}
 

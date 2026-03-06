@@ -1,6 +1,7 @@
 package com.kiseki.interaction.controller;
 
 import com.kiseki.interaction.dto.request.CommentRequest;
+import com.kiseki.interaction.dto.response.BookMarkedResponse;
 import com.kiseki.interaction.dto.response.CommentResponse;
 import com.kiseki.interaction.dto.response.LikeResponse;
 import com.kiseki.interaction.service.InteractionService;
@@ -27,6 +28,16 @@ public class InteractionController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{videoid}/bookmarked")
+    public ResponseEntity<BookMarkedResponse> toggleBookMarked(
+        @PathVariable UUID videoId,
+        @RequestHeader("X-User-Id") UUID userId
+    )
+    {
+        BookMarkedResponse response = interactionService.toggleBookMarked(videoId, userId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{videoId}/view")
     public ResponseEntity<Void> recordView(
             @PathVariable UUID videoId,
@@ -38,7 +49,7 @@ public class InteractionController {
     @PostMapping("/{videoId}/comment")
     public ResponseEntity<CommentResponse> addComment(
             @PathVariable UUID videoId,
-            @RequestHeader("X-User-Id") UUID userId,
+           @RequestHeader("X-User-Id") UUID userId,
             @RequestBody CommentRequest request) {
         CommentResponse response = interactionService.addComment(videoId, userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
