@@ -39,3 +39,13 @@ func (r *VideoRepository) FindByOwnerID(ownerId uuid.UUID) ([]model.Video, error
 func (r *VideoRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&model.Video{}, "id = ?", id).Error
 }
+
+func (r *VideoRepository) FindAll(limit, offset int) ([]model.Video, error) {
+	var videos []model.Video
+	if err := r.db.Order("created_at DESC").
+		Limit(limit).Offset(offset).
+		Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}

@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package user;
+
+// Java package options
+option java_multiple_files = true;
+option java_package = "com.kiseki.user.grpc";
+option java_outer_classname = "UserProto";
+
+// Go package option
+option go_package = "github.com/kiseki/user-service/internal/grpc/userpb";
+
+// C# namespace option
+option csharp_namespace = "UserService.Protos";
+
+service UserService {
+  // Verify if a user exists
+  rpc VerifyUser(VerifyUserRequest) returns (VerifyUserResponse);
+
+  // Get user details by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+message VerifyUserRequest {
+  string user_id = 1;
+}
+
+message VerifyUserResponse {
+  bool exists = 1;
+  string user_id = 2;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message User {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+  string display_name = 4;
+  string bio = 5;
+  string profile_image_url = 6;
+  int64 followers_count = 7;
+  int64 following_count = 8;
+  string created_at = 9;
+}

@@ -20,6 +20,12 @@ spring:
     pathmatcher:
       use-suffix-pattern: false
 
+  kafka:
+    bootstrap-servers: localhost:29092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
 jwt:
   secret: a4e3fdb116dcb8540a3f57c676b5faa0764dbcd2fa489a9b28ac2900cb6cfa18
   access-token-expiry: 900000   
@@ -27,3 +33,8 @@ jwt:
 
 server:
   port: 8081
+
+# gRPC server configuration
+grpc:
+  server:
+    port: 9090

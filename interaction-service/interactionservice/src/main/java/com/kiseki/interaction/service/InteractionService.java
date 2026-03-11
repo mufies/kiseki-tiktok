@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kiseki.interaction.grpc.UserGrpcClient;
+import com.kiseki.interaction.grpc.VideoGrpcClient;
 import com.kiseki.interaction.client.VideoClientValidate;
 import com.kiseki.interaction.dto.request.CommentRequest;
 import com.kiseki.interaction.dto.response.BookMarkedResponse;
@@ -15,6 +17,7 @@ import com.kiseki.interaction.dto.response.CommentResponse;
 import com.kiseki.interaction.dto.response.LikeResponse;
 import com.kiseki.interaction.entity.Interaction;
 import com.kiseki.interaction.entity.InteractionType;
+import com.kiseki.interaction.kafka.KafkaProducerService;
 import com.kiseki.interaction.repository.InteractionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -25,12 +28,18 @@ public class InteractionService {
 
   private final InteractionRepository interactionRepository;
   private final VideoClientValidate videoClientValidate;
+  private final UserGrpcClient userGrpcClient;
+  private final VideoGrpcClient videoGrpcClient;
+  private final KafkaProducerService kafkaProducerService;
 
   @Transactional
-    public LikeResponse toggleLike(UUID videoId, UUID userId) {
-      if (!videoClientValidate.validateVideoExists(videoId)) {
-          throw new IllegalArgumentException("Invalid video ID");
-      }
+  public LikeResponse toggleLike(UUID videoId, UUID userId) {
+    if (!userGrpcClient.isUserExists(userId)) {
+      throw new IllegalArgumentException("Invalid user ID");
+    }
+    if (!videoClientValidate.validateVideoExists(videoId)) {
+      throw new IllegalArgumentException("Invalid video ID");
+    }
     Optional<Interaction> existingLike = interactionRepository.findByUserIdAndVideoIdAndType(userId, videoId,
         InteractionType.LIKE);
 
@@ -46,6 +55,13 @@ public class InteractionService {
           .build();
       interactionRepository.save(like);
       isLiked = true;
+
+      // Send notification event only when liking (not unliking)
+      String videoOwnerId = videoGrpcClient.getVideoOwnerId(videoId.toString());
+      if (videoOwnerId != null && !videoOwnerId.equals(userId.toString())) {
+        // Don't notify if user likes their own video
+        kafkaProducerService.sendLikeEvent(userId.toString(), videoOwnerId, videoId.toString());
+      }
     }
 
     long count = interactionRepository.countByVideoIdAndType(videoId, InteractionType.LIKE);
@@ -54,6 +70,9 @@ public class InteractionService {
 
   @Transactional
   public void recordView(UUID videoId, UUID userId) {
+    if (!userGrpcClient.isUserExists(userId)) {
+      throw new IllegalArgumentException("Invalid user ID");
+    }
     if (!videoClientValidate.validateVideoExists(videoId)) {
       throw new IllegalArgumentException("Invalid video ID");
     }
@@ -72,6 +91,9 @@ public class InteractionService {
 
   @Transactional
   public CommentResponse addComment(UUID videoId, UUID userId, CommentRequest request) {
+    if (!userGrpcClient.isUserExists(userId)) {
+      throw new IllegalArgumentException("Invalid user ID");
+    }
     if (!videoClientValidate.validateVideoExists(videoId)) {
       throw new IllegalArgumentException("Invalid video ID");
     }
@@ -88,6 +110,18 @@ public class InteractionService {
         .build();
 
     Interaction savedComment = interactionRepository.save(comment);
+
+    // Send notification event
+    String videoOwnerId = videoGrpcClient.getVideoOwnerId(videoId.toString());
+    if (videoOwnerId != null && !videoOwnerId.equals(userId.toString())) {
+      // Don't notify if user comments on their own video
+      kafkaProducerService.sendCommentEvent(
+          userId.toString(),
+          videoOwnerId,
+          videoId.toString(),
+          savedComment.getId().toString()
+      );
+    }
 
     return CommentResponse.builder()
         .id(savedComment.getId())
@@ -128,6 +162,9 @@ public class InteractionService {
 
   @Transactional
   public BookMarkedResponse toggleBookMarked(UUID videoId, UUID userId) {
+    if (!userGrpcClient.isUserExists(userId)) {
+      throw new IllegalArgumentException("Invalid user ID");
+    }
     if (!videoClientValidate.validateVideoExists(videoId)) {
       throw new IllegalArgumentException("Invalid video ID");
     }
@@ -146,6 +183,13 @@ public class InteractionService {
           .build();
       interactionRepository.save(like);
       isLiked = true;
+
+      // Send notification event only when bookmarking (not unbookmarking)
+      String videoOwnerId = videoGrpcClient.getVideoOwnerId(videoId.toString());
+      if (videoOwnerId != null && !videoOwnerId.equals(userId.toString())) {
+        // Don't notify if user bookmarks their own video
+        kafkaProducerService.sendBookmarkEvent(userId.toString(), videoOwnerId, videoId.toString());
+      }
     }
 
     long count = interactionRepository.countByVideoIdAndType(videoId, InteractionType.BOOKMARKED);

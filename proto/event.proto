@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package event;
+
+option go_package = "github.com/kiseki/event-service/proto/event";
+option csharp_namespace = "EventService.Protos";
+
+service EventService {
+  // Feed Service calls this to get trending videos
+  rpc GetTrendingVideos(GetTrendingRequest) returns (GetTrendingResponse);
+}
+
+message GetTrendingRequest {
+  int32 limit = 1;
+}
+
+message GetTrendingResponse {
+  repeated TrendingVideo videos = 1;
+}
+
+message TrendingVideo {
+  string video_id = 1;
+  string title = 2;
+  repeated string categories = 3;
+  repeated string hashtags = 4;
+  int64 watch_count = 5;
+}

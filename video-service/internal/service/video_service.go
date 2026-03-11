@@ -27,6 +27,8 @@ func (s *VideoService) Upload(
 	description string,
 	file multipart.File,
 	header *multipart.FileHeader,
+	categories []string,
+	hashtags []string,
 ) (*model.Video, error) {
 	filename := uuid.New().String() + "_" + header.Filename
 
@@ -50,6 +52,8 @@ func (s *VideoService) Upload(
 		Title:       title,
 		Description: description,
 		FileName:    filename,
+		Categories:  categories,
+		Hashtags:    hashtags,
 		MimeType:    header.Header.Get("Content-Type"),
 		Size:        header.Size,
 	}
@@ -65,7 +69,6 @@ func (s *VideoService) GetByID(id uuid.UUID) (*model.Video, string, error) {
 		return nil, "", err
 	}
 
-	
 	url, err := s.minioClient.PresignedGetObject(
 		context.Background(),
 		s.bucket,
@@ -73,7 +76,6 @@ func (s *VideoService) GetByID(id uuid.UUID) (*model.Video, string, error) {
 		15*time.Minute,
 		nil,
 	)
-
 	if err != nil {
 		return nil, "", err
 	}
@@ -81,8 +83,6 @@ func (s *VideoService) GetByID(id uuid.UUID) (*model.Video, string, error) {
 	return video, url.String(), nil
 }
 
-func (s *VideoService) GetByOwner (id uuid.UUID) ([]model.Video, error) {
+func (s *VideoService) GetByOwner(id uuid.UUID) ([]model.Video, error) {
 	return s.repo.FindByOwnerID(id)
 }
-
-

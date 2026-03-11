@@ -25,7 +25,7 @@ func getClientLimiter(ip string) *rate.Limiter {
         value.lastSeen = time.Now()
         return value.limiter
     }
-    limiter := rate.NewLimiter(5, 10)
+    limiter := rate.NewLimiter(50, 100) // Increased for development: 50 req/sec, burst 100
     clients[ip] = &client{
         limiter:  limiter,
         lastSeen: time.Now(),

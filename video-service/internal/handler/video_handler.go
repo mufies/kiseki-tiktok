@@ -27,6 +27,8 @@ func (h *VideoHandler) Upload(c *gin.Context) {
 
 	title := c.PostForm("title")
 	description := c.PostForm("description")
+	categories := c.PostFormArray("categories")
+	hashtags := c.PostFormArray("hashtags")
 
 	file, header, err := c.Request.FormFile("video")
 	if err != nil {
@@ -34,7 +36,7 @@ func (h *VideoHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	video, err := h.svc.Upload(ownerID, title, description, file, header)
+	video, err := h.svc.Upload(ownerID, title, description, file, header, categories, hashtags)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return

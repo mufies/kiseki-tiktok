@@ -15,7 +15,7 @@ public class VideoClientValidate {
   private final WebClient videoClient;
 
   public VideoClientValidate(WebClient.Builder videoClient) {
-    this.videoClient = videoClient.baseUrl("http://localhost:8082/videos").build();
+    this.videoClient = videoClient.baseUrl("http://localhost:8080/api/videos").build();
   }
 
   public boolean validateVideoExists(UUID videoId) {

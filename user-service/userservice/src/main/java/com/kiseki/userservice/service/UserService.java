@@ -4,6 +4,7 @@ import com.kiseki.userservice.dto.response.UserResponse;
 import com.kiseki.userservice.dto.request.UpdateProfileRequest;
 import com.kiseki.userservice.entity.User;
 import com.kiseki.userservice.entity.Follow;
+import com.kiseki.userservice.kafka.KafkaProducerService;
 import com.kiseki.userservice.repository.UserRepository;
 import com.kiseki.userservice.repository.FollowRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
+    private final KafkaProducerService kafkaProducerService;
 
     public UserResponse getUserProfile(String userId) {
         User user = userRepository.findById(userId)
@@ -54,6 +56,9 @@ public class UserService {
                     .followerId(followerId)
                     .followingId(followingId)
                     .build());
+
+            // Send follow notification event
+            kafkaProducerService.sendFollowEvent(followerId, followingId);
         }
     }
 

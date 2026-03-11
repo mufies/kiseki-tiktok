@@ -28,7 +28,7 @@ public class InteractionController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/{videoid}/bookmarked")
+    @PostMapping("/{videoId}/bookmarked")
     public ResponseEntity<BookMarkedResponse> toggleBookMarked(
         @PathVariable UUID videoId,
         @RequestHeader("X-User-Id") UUID userId

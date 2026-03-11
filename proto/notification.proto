@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.kiseki.notification.grpc";
+option java_outer_classname = "NotificationProto";
+option csharp_namespace = "NotificationService.Grpc";
+
+package notification;
+
+service NotificationService {
+  rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+}
+
+enum NotificationType {
+  LIKE = 0;
+  COMMENT = 1;
+  FOLLOW = 2;
+  BOOKMARK = 3;
+}
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  string from_user_id = 3;
+  NotificationType type = 4;
+  optional string video_id = 5;
+  optional string comment_id = 6;
+  bool is_read = 7;
+  int64 created_at = 8;
+}
+
+message GetNotificationsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetNotificationsResponse {
+  repeated Notification notifications = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+message MarkAsReadRequest {
+  string user_id = 1;
+  repeated string notification_ids = 2;
+}
+
+message MarkAsReadResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetUnreadCountRequest {
+  string user_id = 1;
+}
+
+message GetUnreadCountResponse {
+  int32 unread_count = 1;
+}

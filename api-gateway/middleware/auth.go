@@ -33,7 +33,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		claims := token.Claims.(jwt.MapClaims)
 		userId := claims["sub"].(string)
-		r.Header.Set("X-User-ID", userId)
+		r.Header.Set("X-User-Id", userId)
 
 		next.ServeHTTP(w, r)
 	})

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type Video struct {
@@ -14,6 +15,9 @@ type Video struct {
 	FileName    string    `gorm:"not null" json:"-"`
 	MimeType    string    `json:"mimeType"`
 	Size        int64     `json:"size"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// Recommendation metadata
+	Categories pq.StringArray `gorm:"type:text[]" json:"categories"`
+	Hashtags   pq.StringArray `gorm:"type:text[]" json:"hashtags"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	UpdatedAt  time.Time      `json:"updatedAt"`
 }
