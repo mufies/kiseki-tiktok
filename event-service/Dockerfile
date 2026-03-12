@@ -1,20 +1,26 @@
-# ─── Build stage ───────────────────────────────────────────────────────────────
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-COPY EventService.csproj .
-RUN dotnet restore
+# Copy csproj and restore dependencies
+COPY ["EventService.csproj", "./"]
+RUN dotnet restore "EventService.csproj"
 
+# Copy everything else and build
 COPY . .
-RUN dotnet publish -c Release -o /app/publish --no-restore
+WORKDIR "/src"
+RUN dotnet build "EventService.csproj" -c Release -o /app/build
 
-# ─── Runtime stage ─────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# Publish stage
+FROM build AS publish
+RUN dotnet publish "EventService.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
+COPY --from=publish /app/publish .
 
-COPY --from=build /app/publish .
-
-ENV ASPNETCORE_URLS=http://+:5001
-EXPOSE 5001
+ENV ASPNETCORE_URLS=http://+:8083
+EXPOSE 8083 9092
 
 ENTRYPOINT ["dotnet", "EventService.dll"]

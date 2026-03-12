@@ -1,15 +1,13 @@
 package main
 
 import (
+	"api-gateway/middleware"
+	"api-gateway/proxy"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
-
-	"api-gateway/middleware"
-	"api-gateway/proxy"
 )
 
 type ServiceHealth struct {
@@ -19,9 +17,9 @@ type ServiceHealth struct {
 }
 
 type HealthResponse struct {
-	Status   string          `json:"status"`
-	Services []ServiceHealth `json:"services"`
-	CheckedAt string         `json:"checked_at"`
+	Status    string          `json:"status"`
+	Services  []ServiceHealth `json:"services"`
+	CheckedAt string          `json:"checked_at"`
 }
 
 func checkServiceHealth(url string, timeout time.Duration) string {
@@ -58,7 +56,8 @@ func checkHealth(w http.ResponseWriter, r *http.Request) {
 		go func(idx int, service struct {
 			name string
 			url  string
-		}) {
+		},
+		) {
 			defer wg.Done()
 			status := checkServiceHealth(service.url, 2*time.Second)
 			results[idx] = ServiceHealth{

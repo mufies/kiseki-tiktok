@@ -9,31 +9,32 @@ import com.kiseki.user.grpc.VerifyUserRequest;
 import com.kiseki.user.grpc.VerifyUserResponse;
 
 import io.grpc.StatusRuntimeException;
+import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 
-Slf4j
+@Slf4j
 @Component
 public class UserGrpcClient {
 
-    @GrpcClient("user-service")
-    private UserServiceGrpc.UserServiceBlockingStub userServiceStub;
+  @GrpcClient("user-service")
+  private UserServiceGrpc.UserServiceBlockingStub userServiceStub;
 
-    public boolean isUserExists(UUID userId) {
-        try {
-            VerifyUserRequest request = VerifyUserRequest.newBuilder()
-                    .setUserId(userId.toString())
-                    .build();
+  public boolean isUserExists(UUID userId) {
+    try {
+      VerifyUserRequest request = VerifyUserRequest.newBuilder()
+          .setUserId(userId.toString())
+          .build();
 
-            VerifyUserResponse response = userServiceStub.verifyUser(request);
+      VerifyUserResponse response = userServiceStub.verifyUser(request);
 
-            log.debug("User verification for ID {}: exists={}", userId, response.getExists());
-            return response.getExists();
-        } catch (StatusRuntimeException e) {
-            log.error("gRPC error while verifying user {}: {}", userId, e.getStatus());
-            return false;
-        } catch (Exception e) {
-            log.error("Error while verifying user {}: {}", userId, e.getMessage());
-            return false;
-        }
+      log.debug("User verification for ID {}: exists={}", userId, response.getExists());
+      return response.getExists();
+    } catch (StatusRuntimeException e) {
+      log.error("gRPC error while verifying user {}: {}", userId, e.getStatus());
+      return false;
+    } catch (Exception e) {
+      log.error("Error while verifying user {}: {}", userId, e.getMessage());
+      return false;
     }
+  }
 }

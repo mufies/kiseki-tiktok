@@ -13,3 +13,6 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'interactiondb')\gexec
 
 SELECT 'CREATE DATABASE notificationdb'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'notificationdb')\gexec
+
+SELECT 'CREATE DATABASE feeddb'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'feeddb')\gexec

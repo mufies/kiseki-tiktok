@@ -2,18 +2,34 @@ syntax = "proto3";
 
 package video;
 
+// Java package options
+option java_multiple_files = true;
+option java_package = "com.kiseki.video.grpc";
+option java_outer_classname = "VideoProto";
+
 // Go package option
 option go_package = "github.com/kiseki/video-service/internal/grpc/videopb";
 
 // C# namespace option
-option csharp_namespace = "EventService.Protos";
+option csharp_namespace = "VideoService.Protos";
 
 service VideoService {
-  // Get details of a single video
+  // Get details of a single video by ID
+  rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse);
+
+  // Get details of a single video (alias for backward compatibility)
   rpc GetVideo(GetVideoRequest) returns (GetVideoResponse);
 
   // Get a batch of videos (for feed)
   rpc GetVideos(GetVideosRequest) returns (GetVideosResponse);
+}
+
+message GetVideoByIdRequest {
+  string video_id = 1;
+}
+
+message GetVideoByIdResponse {
+  Video video = 1;
 }
 
 message GetVideoRequest {
@@ -35,7 +51,8 @@ message GetVideosResponse {
 
 message Video {
   string video_id = 1;
-  string title = 2;
-  repeated string categories = 3;
-  repeated string hashtags = 4;
+  string user_id = 2;
+  string title = 3;
+  repeated string categories = 4;
+  repeated string hashtags = 5;
 }

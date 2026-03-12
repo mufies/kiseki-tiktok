@@ -1,0 +1,376 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Infrastructure Services
+  # ==========================================
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: tiktok-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: tiktok-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: tiktok-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_MULTIPLE_DATABASES: userdb,videodb,eventdb,interactiondb,notificationdb,feeddb
+    ports:
+      - "5433:5432"  # External port 5433 (5432 is used by local PostgreSQL)
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tiktok-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - tiktok-network
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ==========================================
+  # Backend Microservices
+  # ==========================================
+
+  user-service:
+    build:
+      context: ./user-service/userservice
+      dockerfile: Dockerfile
+    container_name: tiktok-user-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+      - "9090:9090"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/userdb
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GRPC_SERVER_PORT: 9090
+      SERVER_PORT: 8081
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  video-service:
+    build:
+      context: ./video-service
+      dockerfile: Dockerfile
+    container_name: tiktok-video-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+      - "9091:9091"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      DB_NAME: videodb
+      GRPC_PORT: 9091
+      HTTP_PORT: 8082
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  interaction-service:
+    build:
+      context: ./interaction-service/interactionservice
+      dockerfile: Dockerfile
+    container_name: tiktok-interaction-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      video-service:
+        condition: service_started
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/interactiondb
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GRPC_CLIENT_VIDEO_SERVICE_ADDRESS: static://video-service:9091
+      SERVER_PORT: 8084
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  event-service:
+    build:
+      context: ./event-service
+      dockerfile: Dockerfile
+    container_name: tiktok-event-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+      - "9092:9092"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=eventdb;Username=admin;Password=admin123"
+      ConnectionStrings__RedisConnection: "redis:6379"
+      Kestrel__Endpoints__Http__Url: "http://0.0.0.0:8083"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:9092"
+      Kestrel__Endpoints__Grpc__Protocols: "Http2"
+      ASPNETCORE_ENVIRONMENT: Production
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./notification-service/NotificationService
+      dockerfile: Dockerfile
+    container_name: tiktok-notification-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+      - "9093:9093"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=notificationdb;Username=admin;Password=admin123"
+      ConnectionStrings__RedisConnection: "redis:6379"
+      Kafka__BootstrapServers: "kafka:9092"
+      Kestrel__Endpoints__Http__Url: "http://0.0.0.0:8085"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:9093"
+      Kestrel__Endpoints__Grpc__Protocols: "Http2"
+      ASPNETCORE_ENVIRONMENT: Production
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  feed-service:
+    build:
+      context: ./feed-service
+      dockerfile: Dockerfile
+    container_name: tiktok-feed-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: feeddb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PORT: 8086
+      PYTHONUNBUFFERED: 1
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ==========================================
+  # API Gateway
+  # ==========================================
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: tiktok-api-gateway
+    depends_on:
+      user-service:
+        condition: service_started
+      video-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      interaction-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      feed-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      USER_SERVICE_URL: http://user-service:8081
+      VIDEO_SERVICE_URL: http://video-service:8082
+      EVENT_SERVICE_URL: http://event-service:8083
+      INTERACTION_SERVICE_URL: http://interaction-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      FEED_SERVICE_URL: http://feed-service:8086
+      PORT: 8080
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ==========================================
+  # Frontend
+  # ==========================================
+
+  frontend:
+    build:
+      context: ../test-app
+      dockerfile: Dockerfile
+    container_name: tiktok-frontend
+    depends_on:
+      api-gateway:
+        condition: service_started
+    ports:
+      - "3000:80"
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+# ==========================================
+# Networks
+# ==========================================
+
+networks:
+  tiktok-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ==========================================
+# Volumes
+# ==========================================
+
+volumes:
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  kafka-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
