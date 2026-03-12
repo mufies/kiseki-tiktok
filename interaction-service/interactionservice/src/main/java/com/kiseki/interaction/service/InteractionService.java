@@ -98,8 +98,19 @@ public class InteractionService {
       throw new IllegalArgumentException("Invalid video ID");
     }
 
+    // Enhanced validation for fraud prevention
     if (request.getContent() == null || request.getContent().trim().isEmpty()) {
       throw new IllegalArgumentException("Comment content cannot be empty");
+    }
+
+    // Prevent DoS with extremely long comments
+    if (request.getContent().length() > 1000) {
+      throw new IllegalArgumentException("Comment content cannot exceed 1000 characters");
+    }
+
+    // Prevent spam - check for minimum meaningful content length
+    if (request.getContent().trim().length() < 1) {
+      throw new IllegalArgumentException("Comment content too short");
     }
 
     Interaction comment = Interaction.builder()

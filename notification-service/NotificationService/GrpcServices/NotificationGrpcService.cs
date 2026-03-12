@@ -23,6 +23,27 @@ public class NotificationGrpcService : Grpc.NotificationService.NotificationServ
     {
         try
         {
+            // Input validation
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "UserId is required"));
+            }
+
+            // Validate pagination parameters
+            if (request.Page < 1 || request.Page > 1000)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Page must be between 1 and 1000"));
+            }
+
+            if (request.PageSize < 1 || request.PageSize > 100)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "PageSize must be between 1 and 100"));
+            }
+
+            // TODO: Add authorization check - verify that the authenticated user matches request.UserId
+            // Example: var authenticatedUserId = context.GetHttpContext().User.FindFirst("sub")?.Value;
+            // if (authenticatedUserId != request.UserId) throw new RpcException(...)
+
             var result = await _notificationService.GetNotificationsAsync(
                 request.UserId,
                 request.Page,
@@ -79,9 +100,38 @@ public class NotificationGrpcService : Grpc.NotificationService.NotificationServ
     {
         try
         {
-            var notificationIds = request.NotificationIds
-                .Select(id => Guid.Parse(id))
-                .ToList();
+            // Input validation
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "UserId is required"));
+            }
+
+            if (request.NotificationIds == null || request.NotificationIds.Count == 0)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "NotificationIds cannot be empty"));
+            }
+
+            // Prevent abuse - limit batch size
+            if (request.NotificationIds.Count > 100)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Cannot mark more than 100 notifications at once"));
+            }
+
+            // TODO: Add authorization check - verify that the authenticated user matches request.UserId
+            // Example: var authenticatedUserId = context.GetHttpContext().User.FindFirst("sub")?.Value;
+            // if (authenticatedUserId != request.UserId) throw new RpcException(...)
+
+            List<Guid> notificationIds;
+            try
+            {
+                notificationIds = request.NotificationIds
+                    .Select(id => Guid.Parse(id))
+                    .ToList();
+            }
+            catch (FormatException)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid notification ID format"));
+            }
 
             await _notificationService.MarkAsReadAsync(request.UserId, notificationIds);
 
@@ -108,6 +158,16 @@ public class NotificationGrpcService : Grpc.NotificationService.NotificationServ
     {
         try
         {
+            // Input validation
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "UserId is required"));
+            }
+
+            // TODO: Add authorization check - verify that the authenticated user matches request.UserId
+            // Example: var authenticatedUserId = context.GetHttpContext().User.FindFirst("sub")?.Value;
+            // if (authenticatedUserId != request.UserId) throw new RpcException(...)
+
             var count = await _notificationService.GetUnreadCountAsync(request.UserId);
 
             return new GetUnreadCountResponse

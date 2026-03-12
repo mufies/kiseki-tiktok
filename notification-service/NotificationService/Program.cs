@@ -34,7 +34,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // Services
-builder.Services.AddScoped<INotificationService, Services.NotificationService>();
+builder.Services.AddScoped<INotificationService, NotificationService.Services.NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Background Services

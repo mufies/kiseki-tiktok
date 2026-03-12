@@ -23,18 +23,53 @@ public class NotificationService : INotificationService
 
     public async Task<Notification> CreateNotificationAsync(Notification notification)
     {
+        // Validate notification data
+        if (string.IsNullOrWhiteSpace(notification.UserId) ||
+            string.IsNullOrWhiteSpace(notification.FromUserId))
+        {
+            throw new ArgumentException("UserId and FromUserId are required");
+        }
+
+        // Prevent self-notifications (fraud prevention)
+        if (notification.UserId.Equals(notification.FromUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Attempted self-notification blocked: UserId={UserId}", notification.UserId);
+            throw new InvalidOperationException("Cannot create notification for self");
+        }
+
         var created = await _repository.CreateAsync(notification);
 
-        // Update Redis cache - increment unread count
+        // Update Redis cache - increment unread count with expiration
         var db = _redis.GetDatabase();
-        var cacheKey = $"notification:unread:{notification.UserId}";
+        var cacheKey = $"notification:unread:{SanitizeUserId(notification.UserId)}";
         await db.StringIncrementAsync(cacheKey);
+        await db.KeyExpireAsync(cacheKey, TimeSpan.FromHours(24)); // Add cache expiration
 
         return created;
     }
 
+    private static string SanitizeUserId(string userId)
+    {
+        // Remove any characters that could cause Redis key injection
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId cannot be null or empty");
+
+        // Only allow alphanumeric, hyphens, and underscores
+        return System.Text.RegularExpressions.Regex.Replace(userId, @"[^a-zA-Z0-9\-_]", "");
+    }
+
     public async Task<PagedResult<NotificationDto>> GetNotificationsAsync(string userId, int page, int pageSize)
     {
+        // Input validation (defense in depth)
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId is required");
+
+        if (page < 1 || page > 1000)
+            throw new ArgumentException("Page must be between 1 and 1000");
+
+        if (pageSize < 1 || pageSize > 100)
+            throw new ArgumentException("PageSize must be between 1 and 100");
+
         var skip = (page - 1) * pageSize;
         var notifications = await _repository.GetByUserIdAsync(userId, skip, pageSize);
         var totalCount = await _repository.GetTotalCountAsync(userId);
@@ -52,28 +87,40 @@ public class NotificationService : INotificationService
 
     public async Task MarkAsReadAsync(string userId, List<Guid> notificationIds)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId is required");
+
+        if (notificationIds == null || notificationIds.Count == 0)
+            throw new ArgumentException("NotificationIds cannot be empty");
+
         await _repository.MarkAsReadAsync(userId, notificationIds);
 
         // Invalidate cache - force recalculation on next request
         var db = _redis.GetDatabase();
-        var cacheKey = $"notification:unread:{userId}";
+        var cacheKey = $"notification:unread:{SanitizeUserId(userId)}";
         await db.KeyDeleteAsync(cacheKey);
     }
 
     public async Task MarkAllAsReadAsync(string userId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId is required");
+
         await _repository.MarkAllAsReadAsync(userId);
 
-        // Update cache to 0
+        // Update cache to 0 with expiration
         var db = _redis.GetDatabase();
-        var cacheKey = $"notification:unread:{userId}";
-        await db.StringSetAsync(cacheKey, 0);
+        var cacheKey = $"notification:unread:{SanitizeUserId(userId)}";
+        await db.StringSetAsync(cacheKey, 0, TimeSpan.FromHours(24));
     }
 
     public async Task<int> GetUnreadCountAsync(string userId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId is required");
+
         var db = _redis.GetDatabase();
-        var cacheKey = $"notification:unread:{userId}";
+        var cacheKey = $"notification:unread:{SanitizeUserId(userId)}";
 
         var cachedCount = await db.StringGetAsync(cacheKey);
         if (cachedCount.HasValue)
@@ -83,7 +130,7 @@ public class NotificationService : INotificationService
 
         // Cache miss - fetch from database
         var count = await _repository.GetUnreadCountAsync(userId);
-        await db.StringSetAsync(cacheKey, count);
+        await db.StringSetAsync(cacheKey, count, TimeSpan.FromHours(24)); // Add cache expiration
 
         return count;
     }

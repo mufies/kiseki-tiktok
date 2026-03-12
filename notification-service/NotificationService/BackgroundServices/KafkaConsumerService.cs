@@ -94,6 +94,23 @@ public class KafkaConsumerService : BackgroundService
                 return;
             }
 
+            // Validate event data
+            if (string.IsNullOrWhiteSpace(eventDto.ToUserId) ||
+                string.IsNullOrWhiteSpace(eventDto.FromUserId))
+            {
+                _logger.LogWarning("Invalid event data: ToUserId or FromUserId is missing. Message: {Message}", message);
+                return;
+            }
+
+            // FRAUD PREVENTION: Prevent self-notifications
+            if (eventDto.ToUserId.Equals(eventDto.FromUserId, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Self-notification attempt blocked. UserId: {UserId}, Topic: {Topic}",
+                    eventDto.ToUserId, topic);
+                return;
+            }
+
+            // Validate topic
             NotificationType notificationType = topic switch
             {
                 "interaction.liked" => NotificationType.Like,
@@ -106,8 +123,8 @@ public class KafkaConsumerService : BackgroundService
             var notification = new Notification
             {
                 Id = Guid.NewGuid(),
-                UserId = eventDto.ToUserId,
-                FromUserId = eventDto.FromUserId,
+                UserId = SanitizeUserId(eventDto.ToUserId),
+                FromUserId = SanitizeUserId(eventDto.FromUserId),
                 Type = notificationType,
                 VideoId = eventDto.VideoId,
                 CommentId = eventDto.CommentId,
@@ -121,12 +138,13 @@ public class KafkaConsumerService : BackgroundService
 
             var created = await notificationService.CreateNotificationAsync(notification);
 
-            // Send real-time notification via SignalR
+            // Send real-time notification via SignalR (sanitize group name)
             var notificationDto = NotificationDto.FromNotification(created);
-            await _hubContext.Clients.Group($"user:{eventDto.ToUserId}")
+            var sanitizedUserId = SanitizeUserId(eventDto.ToUserId);
+            await _hubContext.Clients.Group($"user:{sanitizedUserId}")
                 .SendAsync("ReceiveNotification", notificationDto);
 
-            _logger.LogInformation("Notification created and sent via SignalR for user {UserId}", eventDto.ToUserId);
+            _logger.LogInformation("Notification created and sent via SignalR for user {UserId}", sanitizedUserId);
 
             // Send email for FOLLOW notifications
             if (notificationType == NotificationType.Follow)
@@ -145,5 +163,15 @@ public class KafkaConsumerService : BackgroundService
         {
             _logger.LogError(ex, "Error processing notification event");
         }
+    }
+
+    private static string SanitizeUserId(string userId)
+    {
+        // Remove any characters that could cause injection attacks
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId cannot be null or empty");
+
+        // Only allow alphanumeric, hyphens, and underscores
+        return System.Text.RegularExpressions.Regex.Replace(userId, @"[^a-zA-Z0-9\-_]", "");
     }
 }
