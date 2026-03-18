@@ -34,10 +34,9 @@ func (s *VideoGRPCServer) GetVideo(ctx context.Context, req *videopb.GetVideoReq
 
 	return &videopb.GetVideoResponse{
 		Video: &videopb.Video{
-			VideoId:    video.ID.String(),
-			Title:      video.Title,
-			Categories: video.Categories,
-			Hashtags:   video.Hashtags,
+			VideoId:  video.ID.String(),
+			Title:    video.Title,
+			Hashtags: video.Hashtags,
 		},
 	}, nil
 }
@@ -61,10 +60,9 @@ func (s *VideoGRPCServer) GetVideos(ctx context.Context, req *videopb.GetVideosR
 	result := make([]*videopb.Video, 0, len(videos))
 	for _, v := range videos {
 		result = append(result, &videopb.Video{
-			VideoId:    v.ID.String(),
-			Title:      v.Title,
-			Categories: v.Categories,
-			Hashtags:   v.Hashtags,
+			VideoId:  v.ID.String(),
+			Title:    v.Title,
+			Hashtags: v.Hashtags,
 		})
 	}
 

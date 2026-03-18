@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kiseki/video-service/config"
@@ -62,9 +63,15 @@ func main() {
 
 	v1 := r.Group("/videos")
 	{
+		v1.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
 		v1.POST("/upload", h.Upload)
+		v1.GET("/:id/presigned-url", h.GetPresignedURL)
+		v1.PATCH("/:id", h.UpdateVideo)
 		v1.GET("/:id", h.GetByID)
 		v1.GET("/user/:userId", h.GetByOwner)
+		v1.DELETE("/:id", h.Delete)
 	}
 
 	log.Println("Video HTTP server running on :" + cfg.ServerPort)

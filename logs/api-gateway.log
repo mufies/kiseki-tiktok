@@ -1,0 +1,198 @@
+2026/03/12 14:42:19 POST /auth/login -> 200 (400.301807ms)
+2026/03/12 14:42:19 GET /api/users/me -> 200 (70.451206ms)
+2026/03/12 14:42:19 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:19 GET /feed/undefined -> 502 (807.24µs)
+2026/03/12 14:42:19 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:19 GET /feed/undefined -> 502 (790.187µs)
+2026/03/12 14:42:23 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:23 GET /feed/undefined -> 502 (913.029µs)
+2026/03/12 14:42:26 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:26 GET /trending -> 502 (1.158582ms)
+2026/03/12 14:42:27 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:27 GET /trending -> 502 (1.146569ms)
+2026/03/12 14:42:36 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:36 GET /feed/undefined -> 502 (794.796µs)
+2026/03/12 14:42:37 GET /api/users/me -> 401 (19.387µs)
+2026/03/12 14:42:37 GET /api/users/me -> 401 (32.591µs)
+2026/03/12 14:42:37 POST /auth/refresh -> 200 (29.468443ms)
+2026/03/12 14:42:38 GET /api/users/me -> 200 (7.665442ms)
+2026/03/12 14:42:38 GET /api/users/me -> 200 (7.509118ms)
+2026/03/12 14:42:38 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:38 GET /feed/undefined -> 502 (815.024µs)
+2026/03/12 14:42:38 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:38 GET /feed/undefined -> 502 (580.132µs)
+2026/03/12 14:42:38 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:38 GET /feed/undefined -> 502 (850.271µs)
+2026/03/12 14:42:44 http: proxy error: dial tcp [::1]:8001: connect: connection refused
+2026/03/12 14:42:44 GET /trending -> 502 (1.038495ms)
+2026/03/12 14:47:15 GET /trending -> 200 (46.622856ms)
+2026/03/12 14:47:21 GET /api/users/me -> 401 (31.55µs)
+2026/03/12 14:47:21 GET /api/users/me -> 401 (19.256µs)
+2026/03/12 14:47:21 POST /auth/refresh -> 200 (14.54624ms)
+2026/03/12 14:47:21 GET /api/users/me -> 200 (7.299224ms)
+2026/03/12 14:47:21 GET /api/users/me -> 200 (6.012416ms)
+2026/03/12 14:47:21 GET /feed/undefined -> 200 (7.855219ms)
+2026/03/12 14:47:21 GET /feed/undefined -> 200 (4.620412ms)
+2026/03/12 14:47:21 GET /feed/undefined -> 200 (5.147041ms)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/video1 -> 502 (791.587µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/video1 -> 502 (600.208µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/video2 -> 502 (862.911µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (788.301µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (747.945µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (656.293µs)
+2026/03/12 14:47:21 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (552.949µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (441.991µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/video2 -> 502 (749.769µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (662.545µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (422.193µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (502.775µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (806.425µs)
+2026/03/12 14:47:21 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:47:21 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (880.174µs)
+2026/03/12 14:47:24 http: proxy error: dial tcp [::1]:8084: connect: connection refused
+2026/03/12 14:47:24 POST /interactions/videos/video1/like -> 502 (946.999µs)
+2026/03/12 14:48:16 GET /api/users/me -> 401 (18.385µs)
+2026/03/12 14:48:16 GET /api/users/me -> 401 (17.863µs)
+2026/03/12 14:48:16 POST /auth/refresh -> 200 (13.348685ms)
+2026/03/12 14:48:16 GET /api/users/me -> 200 (7.394436ms)
+2026/03/12 14:48:16 GET /api/users/me -> 200 (6.829915ms)
+2026/03/12 14:48:16 GET /feed/undefined -> 200 (6.876493ms)
+2026/03/12 14:48:16 GET /feed/undefined -> 200 (4.879449ms)
+2026/03/12 14:48:16 GET /feed/undefined -> 200 (5.0607ms)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/video1 -> 502 (848.836µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/video1 -> 502 (992.956µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/video2 -> 502 (948.612µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (948.332µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (683.885µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (881.566µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (785.567µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (946.428µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/video2 -> 502 (938.354µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (871.237µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (825.912µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (911.393µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (782.45µs)
+2026/03/12 14:48:16 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:16 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (1.00602ms)
+2026/03/12 14:48:23 GET /trending -> 200 (5.915066ms)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/video1 -> 502 (1.076984ms)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/video2 -> 502 (1.030376ms)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (652.707µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (870.365µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (1.006111ms)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (861.499µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (894.17µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/video2 -> 502 (583.276µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (744.91µs)
+2026/03/12 14:48:23 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (676.201µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (940.608µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/video1 -> 502 (1.044874ms)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (660.181µs)
+2026/03/12 14:48:23 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:48:23 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (1.01607ms)
+2026/03/12 14:51:02 GET /api/users/me -> 401 (16.511µs)
+2026/03/12 14:51:02 GET /api/users/me -> 401 (21.921µs)
+2026/03/12 14:51:02 POST /auth/refresh -> 200 (14.237868ms)
+2026/03/12 14:51:02 GET /api/users/me -> 200 (7.919649ms)
+2026/03/12 14:51:02 GET /api/users/me -> 200 (9.418066ms)
+2026/03/12 14:51:02 GET /feed/undefined -> 200 (8.417956ms)
+2026/03/12 14:51:02 GET /feed/undefined -> 200 (5.70763ms)
+2026/03/12 14:51:02 GET /feed/undefined -> 200 (4.749439ms)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/video1 -> 502 (1.012133ms)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/video2 -> 502 (1.169038ms)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (768.424µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (316.986µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (564.612µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (808.69µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (1.004409ms)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (708.562µs)
+2026/03/12 14:51:02 GET /api/videos/video2 -> 502 (816.525µs)
+2026/03/12 14:51:02 GET /api/videos/video1 -> 502 (644.762µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (784.675µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (747.225µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (775.788µs)
+2026/03/12 14:51:02 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:02 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (581.353µs)
+2026/03/12 14:51:11 GET /feed/undefined -> 200 (6.207892ms)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/video1 -> 502 (887.248µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/video2 -> 502 (881.587µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (483.839µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (951.649µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (819.671µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (931.221µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/video2 -> 502 (703.823µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (966.327µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/f82dd3f3-8c61-4276-9564-6e1b1753236d -> 502 (723.21µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/965a1ddb-a0ea-4107-b046-70cea967e8be -> 502 (633.511µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/video1 -> 502 (837.615µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/fb4d6485-fef5-4087-a741-57690e2a9102 -> 502 (944.325µs)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/98807477-4f35-4dfc-9143-86ce0e8e178e -> 502 (1.068679ms)
+2026/03/12 14:51:11 http: proxy error: dial tcp [::1]:8082: connect: connection refused
+2026/03/12 14:51:11 GET /api/videos/6d938cd8-ce2c-4a30-9607-3b82b2462715 -> 502 (646.275µs)
+2026/03/12 14:51:12 http: proxy error: dial tcp [::1]:8084: connect: connection refused
+2026/03/12 14:51:12 POST /interactions/videos/video1/bookmarked -> 502 (816.365µs)

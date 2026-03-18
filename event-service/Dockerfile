@@ -1,14 +1,17 @@
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+WORKDIR /
 
-# Copy csproj and restore dependencies
-COPY ["EventService.csproj", "./"]
+# Copy proto files first (when context is parent dir)
+COPY ["proto", "proto/"]
+
+# Copy event service files
+WORKDIR /src
+COPY ["event-service/EventService.csproj", "./"]
 RUN dotnet restore "EventService.csproj"
 
 # Copy everything else and build
-COPY . .
-WORKDIR "/src"
+COPY ["event-service", "./"]
 RUN dotnet build "EventService.csproj" -c Release -o /app/build
 
 # Publish stage

@@ -1,6 +1,8 @@
 package com.kiseki.interaction.service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -11,10 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.kiseki.interaction.grpc.UserGrpcClient;
 import com.kiseki.interaction.grpc.VideoGrpcClient;
 import com.kiseki.interaction.client.VideoClientValidate;
+import com.kiseki.interaction.client.VideoMetadataClient;
 import com.kiseki.interaction.dto.request.CommentRequest;
 import com.kiseki.interaction.dto.response.BookMarkedResponse;
 import com.kiseki.interaction.dto.response.CommentResponse;
 import com.kiseki.interaction.dto.response.LikeResponse;
+import com.kiseki.interaction.dto.response.LikedVideoResponse;
+import com.kiseki.interaction.dto.response.VideoInteractionResponse;
 import com.kiseki.interaction.entity.Interaction;
 import com.kiseki.interaction.entity.InteractionType;
 import com.kiseki.interaction.kafka.KafkaProducerService;
@@ -30,6 +35,7 @@ public class InteractionService {
   private final VideoClientValidate videoClientValidate;
   private final UserGrpcClient userGrpcClient;
   private final VideoGrpcClient videoGrpcClient;
+  private final VideoMetadataClient videoMetadataClient;
   private final KafkaProducerService kafkaProducerService;
 
   @Transactional
@@ -130,8 +136,7 @@ public class InteractionService {
           userId.toString(),
           videoOwnerId,
           videoId.toString(),
-          savedComment.getId().toString()
-      );
+          savedComment.getId().toString());
     }
 
     return CommentResponse.builder()
@@ -161,13 +166,20 @@ public class InteractionService {
         InteractionType.COMMENT);
 
     return comments.stream()
-        .map(comment -> CommentResponse.builder()
-            .id(comment.getId())
-            .userId(comment.getUserId())
-            .videoId(comment.getVideoId())
-            .content(comment.getContent())
-            .createdAt(comment.getCreatedAt())
-            .build())
+        .map(comment -> {
+          // Fetch user info via gRPC
+          var userInfo = userGrpcClient.getUserById(comment.getUserId());
+
+          return CommentResponse.builder()
+              .id(comment.getId())
+              .userId(comment.getUserId())
+              .username(userInfo != null ? userInfo.getUsername() : "Unknown User")
+              .userProfileImageUrl(userInfo != null ? userInfo.getProfileImageUrl() : null)
+              .videoId(comment.getVideoId())
+              .content(comment.getContent())
+              .createdAt(comment.getCreatedAt())
+              .build();
+        })
         .collect(Collectors.toList());
   }
 
@@ -205,5 +217,115 @@ public class InteractionService {
 
     long count = interactionRepository.countByVideoIdAndType(videoId, InteractionType.BOOKMARKED);
     return new BookMarkedResponse(videoId, isLiked, count);
+  }
+
+  @Transactional(readOnly = true)
+  public List<VideoInteractionResponse> getBulkInteractions(List<UUID> videoIds, UUID userId) {
+    if (videoIds == null || videoIds.isEmpty()) {
+      return List.of();
+    }
+
+    // Get all interaction counts grouped by video and type
+    List<Object[]> counts = interactionRepository.countInteractionsByVideoIds(videoIds);
+    Map<UUID, Map<InteractionType, Long>> countMap = new HashMap<>();
+
+    for (Object[] row : counts) {
+      UUID videoId = (UUID) row[0];
+      InteractionType type = (InteractionType) row[1];
+      Long count = (Long) row[2];
+
+      countMap.computeIfAbsent(videoId, k -> new HashMap<>()).put(type, count);
+    }
+
+    // Get user's interactions with these videos
+    Map<UUID, Boolean> userLikes = new HashMap<>();
+    Map<UUID, Boolean> userBookmarks = new HashMap<>();
+
+    if (userId != null) {
+      List<Interaction> userInteractions = interactionRepository.findByUserIdAndVideoIdInAndType(
+          userId, videoIds, InteractionType.LIKE);
+      userInteractions.forEach(i -> userLikes.put(i.getVideoId(), true));
+
+      List<Interaction> userBookmarkInteractions = interactionRepository.findByUserIdAndVideoIdInAndType(
+          userId, videoIds, InteractionType.BOOKMARKED);
+      userBookmarkInteractions.forEach(i -> userBookmarks.put(i.getVideoId(), true));
+    }
+
+    // Build response for each video
+    return videoIds.stream().map(videoId -> {
+      Map<InteractionType, Long> videoCounts = countMap.getOrDefault(videoId, new HashMap<>());
+
+      return VideoInteractionResponse.builder()
+          .videoId(videoId)
+          .likeCount(videoCounts.getOrDefault(InteractionType.LIKE, 0L))
+          .commentCount(videoCounts.getOrDefault(InteractionType.COMMENT, 0L))
+          .bookmarkCount(videoCounts.getOrDefault(InteractionType.BOOKMARKED, 0L))
+          .viewCount(videoCounts.getOrDefault(InteractionType.VIEW, 0L))
+          .isLiked(userLikes.getOrDefault(videoId, false))
+          .isBookmarked(userBookmarks.getOrDefault(videoId, false))
+          .build();
+    }).collect(Collectors.toList());
+  }
+
+  /**
+   * Get all videos that a user has liked.
+   *
+   * Follows SOLID principles:
+   * - Single Responsibility: Only orchestrates data fetching, delegates to specialized components
+   * - Dependency Inversion: Depends on VideoMetadataClient interface, not concrete implementation
+   * - Open/Closed: Can extend with caching/filtering without modifying this method
+   *
+   * @param userId User ID to fetch liked videos for
+   * @return List of videos with interaction metadata, ordered by most recent like
+   */
+  @Transactional(readOnly = true)
+  public List<LikedVideoResponse> getUserLikedVideos(UUID userId) {
+    // Step 1: Get all like interactions for user (ordered by most recent)
+    List<Interaction> likes = interactionRepository
+        .findByUserIdAndTypeOrderByCreatedAtDesc(userId, InteractionType.LIKE);
+
+    if (likes.isEmpty()) {
+      return List.of();
+    }
+
+    // Step 2: Extract video IDs
+    List<UUID> videoIds = likes.stream()
+        .map(Interaction::getVideoId)
+        .collect(Collectors.toList());
+
+    // Step 3: Bulk fetch video metadata (efficient - 1 call instead of N)
+    Map<UUID, VideoMetadataClient.VideoMetadata> videoMetadataMap =
+        videoMetadataClient.getBulkVideos(videoIds);
+
+    // Step 4: Combine interaction data + video metadata
+    return likes.stream()
+        .map(like -> {
+          VideoMetadataClient.VideoMetadata videoMeta = videoMetadataMap.get(like.getVideoId());
+
+          if (videoMeta != null) {
+            // Video still exists
+            return LikedVideoResponse.builder()
+                .interactionId(like.getId())
+                .likedAt(like.getCreatedAt())
+                .videoId(videoMeta.videoId())
+                .title(videoMeta.title())
+                .hashtags(videoMeta.hashtags())
+                .categories(videoMeta.categories())
+                .isAvailable(true)
+                .build();
+          } else {
+            // Video was deleted or unavailable
+            return LikedVideoResponse.builder()
+                .interactionId(like.getId())
+                .likedAt(like.getCreatedAt())
+                .videoId(like.getVideoId())
+                .title("Video Unavailable")
+                .hashtags(List.of())
+                .categories(List.of())
+                .isAvailable(false)
+                .build();
+          }
+        })
+        .collect(Collectors.toList());
   }
 }

@@ -49,3 +49,9 @@ func (r *VideoRepository) FindAll(limit, offset int) ([]model.Video, error) {
 	}
 	return videos, nil
 }
+
+func (r *VideoRepository) Update(id uuid.UUID, video *model.Video) error {
+	return r.db.Model(&model.Video{}).
+		Where("id = ?", id).
+		Updates(video).Error
+}

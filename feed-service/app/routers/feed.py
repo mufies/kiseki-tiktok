@@ -26,9 +26,10 @@ async def get_feed(
 @router.get("/trending", response_model=TrendingResponse)
 async def get_trending(
     limit: int = Query(default=20, ge=1, le=100),
+    user_id: str | None = Query(default=None),
     feed_service: FeedService = Depends(_get_feed_service),
 ) -> TrendingResponse:
-    videos = await feed_service.get_trending(limit)
+    videos = await feed_service.get_trending(limit, user_id)
     return TrendingResponse(videos=videos)
 
 

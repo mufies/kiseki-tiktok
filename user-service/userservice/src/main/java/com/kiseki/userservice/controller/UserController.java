@@ -1,5 +1,7 @@
 package com.kiseki.userservice.controller;
 
+import com.kiseki.userservice.dto.request.ChangeEmailRequest;
+import com.kiseki.userservice.dto.request.ChangePasswordRequest;
 import com.kiseki.userservice.dto.response.UserResponse;
 import com.kiseki.userservice.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -57,5 +59,20 @@ public class UserController {
     @GetMapping("/{id}/following")
     public ResponseEntity<List<UserResponse>> getFollowing(@PathVariable("id") String id) {
         return ResponseEntity.ok(userService.getFollowing(id));
+    }
+
+    @PutMapping("/me/email")
+    public ResponseEntity<UserResponse> changeEmail(
+            @RequestAttribute("userId") String userId,
+            @RequestBody ChangeEmailRequest request) {
+        return ResponseEntity.ok(userService.changeEmail(userId, request));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<?> changePassword(
+            @RequestAttribute("userId") String userId,
+            @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(userId, request);
+        return ResponseEntity.ok().build();
     }
 }

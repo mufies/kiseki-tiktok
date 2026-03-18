@@ -22,8 +22,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-# gRPC client configuration
+# gRPC configuration
 grpc:
+  server:
+    port: 9092
   client:
     user-service:
       address: 'static://localhost:9090'

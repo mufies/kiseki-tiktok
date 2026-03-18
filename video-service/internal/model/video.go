@@ -16,8 +16,7 @@ type Video struct {
 	MimeType    string    `json:"mimeType"`
 	Size        int64     `json:"size"`
 	// Recommendation metadata
-	Categories pq.StringArray `gorm:"type:text[]" json:"categories"`
-	Hashtags   pq.StringArray `gorm:"type:text[]" json:"hashtags"`
-	CreatedAt  time.Time      `json:"createdAt"`
-	UpdatedAt  time.Time      `json:"updatedAt"`
+	Hashtags  pq.StringArray `gorm:"type:text[]" json:"hashtags"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
 }

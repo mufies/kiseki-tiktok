@@ -1,14 +1,17 @@
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+WORKDIR /
 
-# Copy csproj and restore dependencies
-COPY ["NotificationService.csproj", "./"]
+# Copy proto files first (when context is parent dir)
+COPY ["proto", "proto/"]
+
+# Copy notification service files
+WORKDIR /src
+COPY ["notification-service/NotificationService/NotificationService.csproj", "./"]
 RUN dotnet restore "NotificationService.csproj"
 
 # Copy everything else and build
-COPY . .
-WORKDIR "/src"
+COPY ["notification-service/NotificationService", "./"]
 RUN dotnet build "NotificationService.csproj" -c Release -o /app/build
 
 # Publish stage

@@ -13,6 +13,7 @@ from app.config import settings
 from app.grpc_client import GrpcClients
 from app.repositories.profile_repo import ProfileRepository
 from app.repositories.video_repo import VideoRepository
+from app.repositories.interaction_repo import InteractionRepository
 from app.routers.feed import router
 from app.services.feed_service import FeedService
 
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     grpc_clients = GrpcClients(
         video_service_addr=settings.video_service_grpc,
         event_service_addr=settings.event_service_grpc,
+        interaction_service_addr=settings.interaction_service_grpc,
     )
 
     # Redis (profile + watch-history)
@@ -41,9 +43,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         max_size=10,
     )
 
-    video_repo   = VideoRepository(grpc_clients.video, grpc_clients.event)
-    profile_repo = ProfileRepository(redis_client)
-    feed_service = FeedService(video_repo, profile_repo)
+    video_repo       = VideoRepository(grpc_clients.video, grpc_clients.event)
+    profile_repo     = ProfileRepository(redis_client)
+    interaction_repo = InteractionRepository(grpc_clients.interaction)
+    feed_service     = FeedService(video_repo, profile_repo, interaction_repo)
 
     app.state.grpc_clients  = grpc_clients
     app.state.redis_client  = redis_client

@@ -1,5 +1,5 @@
 using Grpc.Net.Client;
-using EventService.Protos;
+using VideoService.Protos;
 using EventService.Models;
 
 namespace EventService.Repositories;
@@ -10,14 +10,14 @@ namespace EventService.Repositories;
 public class VideoGrpcRepository(IConfiguration config, ILogger<VideoGrpcRepository> logger) : IVideoRepository
 {
     // Channel is thread-safe and long-lived; one per process.
-    private readonly Protos.VideoService.VideoServiceClient _client = new(
+    private readonly VideoService.Protos.VideoService.VideoServiceClient _client = new(
         GrpcChannel.ForAddress(config["VideoService:GrpcAddress"] ?? "http://localhost:9091"));
 
     public async Task<Models.Video?> GetByIdAsync(string videoId, CancellationToken ct = default)
     {
         try
         {
-            var response = await _client.GetVideoAsync(new GetVideoRequest { VideoId = videoId },
+            var response = await _client.GetVideoAsync(new VideoService.Protos.GetVideoRequest { VideoId = videoId },
                 cancellationToken: ct);
 
             return MapProtoToModel(response.Video);
@@ -33,7 +33,7 @@ public class VideoGrpcRepository(IConfiguration config, ILogger<VideoGrpcReposit
     {
         try
         {
-            var response = await _client.GetVideosAsync(new GetVideosRequest { Limit = 1000, Offset = 0 },
+            var response = await _client.GetVideosAsync(new VideoService.Protos.GetVideosRequest { Limit = 1000, Offset = 0 },
                 cancellationToken: ct);
 
             return response.Videos.Select(MapProtoToModel).ToList();
@@ -45,7 +45,7 @@ public class VideoGrpcRepository(IConfiguration config, ILogger<VideoGrpcReposit
         }
     }
 
-    private static Models.Video MapProtoToModel(Protos.Video v) => new()
+    private static Models.Video MapProtoToModel(VideoService.Protos.Video v) => new()
     {
         VideoId    = v.VideoId,
         Title      = v.Title,

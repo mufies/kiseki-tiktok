@@ -1,0 +1,116 @@
+.feed-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.feed-header h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.feed-toggle {
+  display: flex;
+  gap: 10px;
+  background: white;
+  padding: 4px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.feed-toggle button {
+  padding: 10px 24px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feed-toggle button:hover {
+  color: #667eea;
+  background: #f8f9fe;
+}
+
+.feed-toggle button.active {
+  background: #667eea;
+  color: white;
+}
+
+.feed-loading,
+.feed-error,
+.feed-empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.feed-loading .spinner {
+  color: #667eea;
+  font-size: 16px;
+}
+
+.feed-error {
+  color: #e74c3c;
+}
+
+.feed-error button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.feed-error button:hover {
+  background: #5568d3;
+}
+
+.feed-empty {
+  color: #888;
+  font-size: 16px;
+}
+
+.feed-content {
+  margin-bottom: 30px;
+}
+
+.refresh-btn {
+  width: 100%;
+  padding: 14px;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 20px;
+}
+
+.refresh-btn:hover {
+  background: #667eea;
+  color: white;
+}

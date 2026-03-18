@@ -14,8 +14,7 @@ option go_package = "github.com/kiseki/video-service/internal/grpc/videopb";
 option csharp_namespace = "VideoService.Protos";
 
 service VideoService {
-  // Get details of a single video by ID
-  rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse);
+
 
   // Get details of a single video (alias for backward compatibility)
   rpc GetVideo(GetVideoRequest) returns (GetVideoResponse);

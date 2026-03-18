@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package interaction;
+
+// Java package options
+option java_multiple_files = true;
+option java_package = "com.kiseki.interaction.grpc";
+option java_outer_classname = "InteractionProto";
+
+// Python package option
+option py_generic_services = true;
+
+service InteractionService {
+  // Get bulk interactions for multiple videos
+  rpc GetBulkInteractions(GetBulkInteractionsRequest) returns (GetBulkInteractionsResponse);
+}
+
+message GetBulkInteractionsRequest {
+  repeated string video_ids = 1;
+  optional string user_id = 2;
+}
+
+message GetBulkInteractionsResponse {
+  repeated VideoInteraction interactions = 1;
+}
+
+message VideoInteraction {
+  string video_id = 1;
+  int64 like_count = 2;
+  int64 comment_count = 3;
+  int64 bookmark_count = 4;
+  int64 view_count = 5;
+  bool is_liked = 6;
+  bool is_bookmarked = 7;
+}

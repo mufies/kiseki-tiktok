@@ -11,8 +11,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # gRPC addresses of upstream services
-    video_service_grpc: str = "localhost:9091"   # Video Service gRPC
-    event_service_grpc: str = "localhost:5002"   # Event Service gRPC
+    video_service_grpc: str = "localhost:9091"        # Video Service gRPC
+    event_service_grpc: str = "localhost:5002"        # Event Service gRPC
+    interaction_service_grpc: str = "localhost:9092"  # Interaction Service gRPC
 
     port: int = 8001
 

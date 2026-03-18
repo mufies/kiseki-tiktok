@@ -16,11 +16,11 @@ public class VideoGrpcClient {
 
   public String getVideoOwnerId(String videoId) {
     try {
-      GetVideoByIdRequest request = GetVideoByIdRequest.newBuilder()
+      GetVideoRequest request = GetVideoRequest.newBuilder()
           .setVideoId(videoId)
           .build();
 
-      GetVideoByIdResponse response = videoServiceStub.getVideoById(request);
+      GetVideoResponse response = videoServiceStub.getVideo(request);
       return response.getVideo().getUserId();
     } catch (Exception e) {
       log.error("Failed to fetch video owner for videoId: {}", videoId, e);

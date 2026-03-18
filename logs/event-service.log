@@ -1,0 +1,44 @@
+Using launch settings from /home/mufies/Code/tiktok-clone/event-service/Properties/launchSettings.json...
+Building...
+info: Microsoft.EntityFrameworkCore.Migrations[20405]
+      No migrations were applied. The database is already up to date.
+warn: Microsoft.AspNetCore.Server.Kestrel[0]
+      Overriding address(es) 'http://localhost:5214'. Binding to endpoints defined via IConfiguration and/or UseKestrel() instead.
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://0.0.0.0:5002
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://0.0.0.0:5001
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /home/mufies/Code/tiktok-clone/event-service
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: EventService.GrpcServices.EventGrpcService[0]
+      GetTrendingVideos returned 7 results
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
