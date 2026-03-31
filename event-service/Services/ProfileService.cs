@@ -2,6 +2,7 @@ using System.Text.Json;
 using StackExchange.Redis;
 using EventService.Models;
 using EventService.Repositories;
+using EventService.Strategies;
 
 namespace EventService.Services;
 
@@ -9,6 +10,7 @@ public class ProfileService(
     IEventRepository eventRepo,
     IVideoRepository videoRepo,
     IConnectionMultiplexer redis,
+    IWeightingStrategy weightingStrategy,
     ILogger<ProfileService> logger) : IProfileService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -17,7 +19,6 @@ public class ProfileService(
         WriteIndented = false
     };
 
-    // ─── Rebuild profile from full history and write to Redis ─────────────────
     public async Task<UserProfile> RebuildAndCacheAsync(string userId, CancellationToken ct = default)
     {
         var events = await eventRepo.GetUserEventsAsync(userId, ct);
@@ -31,15 +32,7 @@ public class ProfileService(
             var video = await videoRepo.GetByIdAsync(ev.VideoId, ct);
             if (video is null) continue;
 
-            // Base weight
-            double weight = ev.WatchPct * 0.6
-                          + (ev.Liked ? 40.0 : 0.0)
-                          - (ev.WatchPct < 30f ? 20.0 : 0.0);
-
-            // Time decay: 0.95 ^ days_ago
-            int daysAgo = Math.Max(0, (now - ev.Timestamp.Date).Days);
-            double decay  = Math.Pow(0.95, daysAgo);
-            double finalW = weight * decay;
+            double finalW = weightingStrategy.CalculateWeight(ev, now);
 
             foreach (var cat in video.Categories)
                 categories[cat] = categories.GetValueOrDefault(cat) + finalW;
@@ -56,7 +49,6 @@ public class ProfileService(
             UpdatedAt  = DateTime.UtcNow
         };
 
-        // Write to Redis with no expiry (Feed Service needs it indefinitely)
         var db  = redis.GetDatabase();
         var key = $"profile:{userId}";
         var json = JsonSerializer.Serialize(profile, JsonOptions);
@@ -68,7 +60,6 @@ public class ProfileService(
         return profile;
     }
 
-    // ─── Read profile from Redis ───────────────────────────────────────────────
     public async Task<UserProfile?> GetFromCacheAsync(string userId, CancellationToken ct = default)
     {
         var db  = redis.GetDatabase();

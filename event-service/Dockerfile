@@ -24,6 +24,6 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:8083
-EXPOSE 8083 9092
+EXPOSE 5001 9092
 
 ENTRYPOINT ["dotnet", "EventService.dll"]

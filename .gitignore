@@ -67,3 +67,16 @@ build/
 BUILD_VERIFICATION.md
 SECURITY_FIXES_REPORT.md
 SECURITY_IMPLEMENTATION_GUIDE.md
+
+# Air live reload temp files
+tmp/
+.air.toml
+
+# Python test coverage
+.coverage
+*.pyi
+
+# Docker development files (uncomment if you want to ignore these)
+# .dockerignore
+# Dockerfile.dev
+# Dockerfile.dev.alternative

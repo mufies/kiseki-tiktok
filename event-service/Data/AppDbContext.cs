@@ -12,17 +12,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         base.OnModelCreating(modelBuilder);
 
-        // PostgreSQL array column for categories
         modelBuilder.Entity<Video>()
             .Property(v => v.Categories)
             .HasColumnType("text[]");
 
-        // PostgreSQL array column for hashtags
         modelBuilder.Entity<Video>()
             .Property(v => v.Hashtags)
             .HasColumnType("text[]");
 
-        // Index on watch_events for user queries
         modelBuilder.Entity<WatchEvent>()
             .HasIndex(e => e.UserId)
             .HasDatabaseName("ix_watch_events_user_id");

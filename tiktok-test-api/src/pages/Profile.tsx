@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { userAPI, type UserProfile } from '../api/user';
 import { videoAPI } from '../api/video';
 import { interactionAPI, type LikedVideo } from '../api/interaction';
+import { notificationAPI, type NotificationDetail, NotificationTypes } from '../api/notification';
 import { type Video } from '../types';
-import { Settings, Bookmark, Heart, Grid, LayoutGrid, ChevronLeft, X, Volume2, VolumeX, Send } from 'lucide-react';
+import { Settings, Bookmark, Heart, Grid, LayoutGrid, ChevronLeft, X, Volume2, VolumeX, Send, Bell } from 'lucide-react';
 
 interface Comment {
   id: string;
   author: string;
-  text: string;
+  content: string;
   timestamp: string;
 }
 
@@ -33,12 +34,19 @@ export default function Profile() {
   const [commentInput, setCommentInput] = useState('');
   const [showComments, setShowComments] = useState(false);
   const [currentLikedIndex, setCurrentLikedIndex] = useState<number>(-1);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationDetail[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadProfile();
+    if (user) {
+      loadUnreadCount();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -46,6 +54,12 @@ export default function Profile() {
       loadLikedVideos();
     }
   }, [activeTab, profile]);
+
+  useEffect(() => {
+    if (showNotifications && profile) {
+      loadNotifications();
+    }
+  }, [showNotifications, profile]);
 
   const loadProfile = async () => {
     if (!user) return;
@@ -81,6 +95,79 @@ export default function Profile() {
     } catch (err) {
       console.error('Failed to load liked videos:', err);
       setError('Failed to load liked videos');
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!profile) return;
+
+    try {
+      setLoadingNotifications(true);
+      const result = await notificationAPI.getNotifications(profile.id, 1, 20);
+      setNotifications(result.items);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    if (!user) return;
+
+    try {
+      const userId = user.id || user.user_id;
+      if (!userId) return;
+      const count = await notificationAPI.getUnreadCount(userId);
+      setUnreadCount(count);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!profile) return;
+
+    try {
+      await notificationAPI.markAllAsRead(profile.id);
+      setUnreadCount(0);
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleNotificationClick = async (notification: NotificationDetail) => {
+    // Mark as read if not already
+    if (!notification.isRead && profile) {
+      try {
+        await notificationAPI.markAsRead(profile.id, [notification.id]);
+        setNotifications(notifications.map(n =>
+          n.id === notification.id ? { ...n, isRead: true } : n
+        ));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (err) {
+        console.error('Failed to mark as read:', err);
+      }
+    }
+
+    // Navigate based on notification type
+    setShowNotifications(false);
+
+    if (notification.type === NotificationTypes.Follow) {
+      // Navigate to user profile
+      if (notification.fromUserId) {
+        navigate(`/user/${notification.fromUserId}`);
+      }
+    } else if (notification.videoId) {
+      // Find and play the video
+      const videoToPlay = videos.find(v => (v.id || v.video_id) === notification.videoId);
+      if (videoToPlay) {
+        handleVideoClick(videoToPlay);
+      } else {
+        // Video not in current user's videos, might be from liked videos
+        console.log('Navigate to video:', notification.videoId);
+      }
     }
   };
 
@@ -127,27 +214,18 @@ export default function Profile() {
       setIsMuted(true);
       setShowComments(false);
       setCommentInput('');
-      // Mock comments for demo (in real app, these would come from API)
-      setComments([
-        {
-          id: '1',
-          author: 'user1',
-          text: 'Great video! 🔥',
-          timestamp: '2 hours ago',
-        },
-        {
-          id: '2',
-          author: 'user2',
-          text: 'Love this content',
-          timestamp: '1 hour ago',
-        },
-        {
-          id: '3',
-          author: 'user3',
-          text: 'Amazing! Please share more',
-          timestamp: '30 minutes ago',
-        },
-      ]);
+      const videoComments = await interactionAPI.getComments(videoId);
+      setComments(
+        (videoComments as any).map((comment: any) => ({
+          id: comment.id,
+          author: comment.username,
+          content: comment.content,
+          timestamp: new Date(comment.createdAt).toLocaleString('en-US', {
+            timeStyle: 'short',
+            dateStyle: 'short',
+          }),
+        }))
+      );
     } catch (err) {
       console.error('Failed to load video:', err);
       setError('Failed to load video');
@@ -176,26 +254,19 @@ export default function Profile() {
       setIsMuted(true);
       setShowComments(false);
       setCommentInput('');
-      setComments([
-        {
-          id: '1',
-          author: 'user1',
-          text: 'Great video! 🔥',
-          timestamp: '2 hours ago',
-        },
-        {
-          id: '2',
-          author: 'user2',
-          text: 'Love this content',
-          timestamp: '1 hour ago',
-        },
-        {
-          id: '3',
-          author: 'user3',
-          text: 'Amazing! Please share more',
-          timestamp: '30 minutes ago',
-        },
-      ]);
+      // Load comments from API
+      const videoComments = await interactionAPI.getComments(likedVideo.videoId);
+      setComments(
+        (videoComments as any).map((comment: any) => ({
+          id: comment.id,
+          author: comment.username,
+          content: comment.content,
+          timestamp: new Date(comment.createdAt).toLocaleString('en-US', {
+            timeStyle: 'short',
+            dateStyle: 'short',
+          }),
+        }))
+      );
     } catch (err) {
       console.error('Failed to load liked video:', err);
       setError('Failed to load video');
@@ -274,23 +345,36 @@ export default function Profile() {
     setTouchEnd(0);
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!commentInput.trim() || !user) return;
 
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      author: user.username,
-      text: commentInput,
-      timestamp: 'just now',
-    };
+    try {
+      const videoId = selectedVideo?.id || selectedVideo?.video_id;
+      if (!videoId) return;
 
-    setComments([...comments, newComment]);
-    setCommentInput('');
+      // Optimistic update
+      const newComment: Comment = {
+        id: Date.now().toString(),
+        author: user.username,
+        content: commentInput,
+        timestamp: 'just now',
+      };
 
-    // Auto-scroll to bottom
-    setTimeout(() => {
-      commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+      setComments([...comments, newComment]);
+      setCommentInput('');
+
+      // Call API
+      await interactionAPI.addComment(videoId, commentInput);
+
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      // Revert on error
+      setComments(comments.slice(0, -1));
+    }
   };
 
   // Auto-play when video loads
@@ -332,9 +416,24 @@ export default function Profile() {
           <ChevronLeft size={28} />
         </button>
         <h1 className="font-bold text-lg">{profile.username || 'Profile'}</h1>
-        <button onClick={handleLogout} className="text-zinc-400 hover:text-white transition" title="Logout">
-          <Settings size={22} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="text-zinc-400 hover:text-white transition relative"
+            title="Notifications"
+          >
+            <Bell size={22} />
+            {/* Notification badge */}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+          <button onClick={handleLogout} className="text-zinc-400 hover:text-white transition" title="Logout">
+            <Settings size={22} />
+          </button>
+        </div>
       </header>
 
       {/* Profile Info */}
@@ -451,9 +550,13 @@ export default function Profile() {
                   onClick={() => handleVideoClick(video)}
                   className="relative aspect-[3/4] bg-zinc-900 group cursor-pointer overflow-hidden hover:opacity-80 transition-opacity"
                 >
-                  {/* Placeholder/thumbnail */}
+                  {/* Thumbnail */}
                   <div className="w-full h-full flex items-center justify-center text-zinc-700 font-bold bg-gradient-to-br from-zinc-800 to-zinc-900">
-                    <span className="truncate w-3/4 text-center text-xs opacity-50">{video.title}</span>
+                    {video.videoThumbnail ? (
+                      <img src={video.videoThumbnail} alt={video.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <img src="/video-placeholder.png" alt={video.title} className="w-full h-full object-cover" />
+                    )}
                   </div>
 
                   {/* Views/Plays overlay */}
@@ -489,11 +592,15 @@ export default function Profile() {
                     onClick={() => handleLikedVideoClick(likedVideo, index)}
                     className="relative aspect-[3/4] bg-zinc-900 group cursor-pointer overflow-hidden hover:opacity-80 transition-opacity"
                   >
-                    {/* Placeholder/thumbnail */}
+                    {/* Thumbnail */}
                     <div className="w-full h-full flex items-center justify-center text-zinc-700 font-bold bg-gradient-to-br from-zinc-800 to-zinc-900">
-                      <span className="truncate w-3/4 text-center text-xs opacity-50">
-                        {likedVideo.title}
-                      </span>
+                      {likedVideo.videoThumbnail ? (
+                        <img src={likedVideo.videoThumbnail} alt={likedVideo.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="truncate w-3/4 text-center text-xs opacity-50">
+                          {likedVideo.title}
+                        </span>
+                      )}
                     </div>
 
                     {/* Hashtags overlay */}
@@ -602,29 +709,29 @@ export default function Profile() {
           {showComments && (
             <div className="h-1/2 bg-zinc-900 border-t border-zinc-800 flex flex-col overflow-hidden" style={{ animation: 'slideUp 0.3s ease-out' }}>
               {/* Drag handle */}
-              <div className="w-full flex justify-center pt-2 pb-1">
+              <div className="w-full flex justify-center pt-3 pb-2">
                 <div className="w-12 h-1 bg-zinc-700 rounded-full"></div>
               </div>
 
               {/* Comments Header */}
-              <div className="px-4 py-3 border-b border-zinc-800">
+              <div className="px-6 py-4 border-b border-zinc-800">
                 <h2 className="text-lg font-bold text-white">Comments</h2>
                 <p className="text-sm text-zinc-400">{comments.length} comments</p>
               </div>
 
               {/* Comments List */}
-              <div className="flex-1 overflow-y-auto scrollbar-hide px-4 py-3 space-y-3">
+              <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-4 space-y-4">
                 {comments.length === 0 ? (
-                  <div className="text-center text-zinc-500 py-6">
+                  <div className="text-center text-zinc-500 py-8">
                     <p>No comments yet</p>
                     <p className="text-xs mt-2">Be the first to comment!</p>
                   </div>
                 ) : (
                   <>
                     {comments.map((comment) => (
-                      <div key={comment.id} className="flex gap-2">
+                      <div key={comment.id} className="flex gap-3">
                         {/* Avatar */}
-                        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">
+                        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
                           {comment.author.charAt(0).toUpperCase()}
                         </div>
 
@@ -634,7 +741,7 @@ export default function Profile() {
                             <span className="font-semibold text-white text-sm">@{comment.author}</span>
                             <span className="text-xs text-zinc-500">{comment.timestamp}</span>
                           </div>
-                          <p className="text-white text-sm mt-0.5 break-words line-clamp-2">{comment.text}</p>
+                          <p className="text-white text-sm mt-1 break-words">{comment.content}</p>
                         </div>
                       </div>
                     ))}
@@ -644,7 +751,7 @@ export default function Profile() {
               </div>
 
               {/* Comment Input */}
-              <div className="px-4 py-3 border-t border-zinc-800 bg-zinc-950">
+              <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-950">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -652,14 +759,14 @@ export default function Profile() {
                     onChange={(e) => setCommentInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                     placeholder="Add comment..."
-                    className="flex-1 bg-zinc-800 text-white text-sm px-3 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-zinc-500"
+                    className="flex-1 bg-zinc-800 text-white text-sm px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-zinc-500"
                   />
                   <button
                     onClick={handleAddComment}
                     disabled={!commentInput.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white p-2 rounded-full transition flex items-center justify-center flex-shrink-0"
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white p-2.5 rounded-full transition flex items-center justify-center flex-shrink-0"
                   >
-                    <Send size={18} />
+                    <Send size={20} />
                   </button>
                 </div>
               </div>
@@ -674,6 +781,118 @@ export default function Profile() {
           <span>{error}</span>
           <button onClick={() => setError(null)} className="opacity-70 hover:opacity-100 font-bold">×</button>
         </div>
+      )}
+
+      {/* Notification Dropdown Modal */}
+      {showNotifications && (
+        <>
+          {/* Backdrop to close dropdown */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowNotifications(false)}
+          />
+
+          {/* Dropdown */}
+          <div className="fixed top-16 right-4 w-80 max-w-[calc(100vw-2rem)] bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl z-50 max-h-[70vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Notifications</h2>
+              <button
+                onClick={() => setShowNotifications(false)}
+                className="text-zinc-400 hover:text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Notification List */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              {loadingNotifications ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-zinc-600 border-t-white rounded-full animate-spin"></div>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
+                  <Bell size={48} className="mb-3 opacity-50" />
+                  <p>No notifications yet</p>
+                </div>
+              ) : (
+                notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    onClick={() => handleNotificationClick(notif)}
+                    className={`px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 cursor-pointer transition ${
+                      !notif.isRead ? 'bg-zinc-800/30' : ''
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold overflow-hidden">
+                        {notif.fromAvatarUrl ? (
+                          <img src={notif.fromAvatarUrl} alt={notif.fromUsername} className="w-full h-full object-cover" />
+                        ) : (
+                          notif.fromUsername.charAt(0).toUpperCase()
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white">
+                          <span className="font-semibold">@{notif.fromUsername}</span>{' '}
+                          <span className="text-zinc-400">{notif.message}</span>
+                        </p>
+                        {notif.type === NotificationTypes.Comment && notif.commentContent && (
+                          <p className="text-sm text-zinc-300 mt-1 line-clamp-2">{notif.commentContent}</p>
+                        )}
+                        {notif.videoTitle && (
+                          <p className="text-xs text-zinc-500 mt-1 truncate">"{notif.videoTitle}"</p>
+                        )}
+                        <p className="text-xs text-zinc-500 mt-1">
+                          {new Date(notif.createdAt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+
+                      {/* Icon & Thumbnail */}
+                      <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                        {notif.type === NotificationTypes.Like && (
+                          <Heart size={16} className="text-red-500" fill="currentColor" />
+                        )}
+                        {notif.type === NotificationTypes.Comment && <span className="text-lg">💬</span>}
+                        {notif.type === NotificationTypes.Follow && <span className="text-lg">👤</span>}
+                        {notif.type === NotificationTypes.Bookmark && (
+                          <Bookmark size={16} className="text-yellow-500" fill="currentColor" />
+                        )}
+                        {notif.videoThumbnail && (
+                          <img
+                            src={notif.videoThumbnail}
+                            alt=""
+                            className="w-12 h-16 object-cover rounded mt-1"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-zinc-800">
+              <button
+                onClick={handleMarkAllAsRead}
+                disabled={unreadCount === 0}
+                className="text-sm text-purple-500 hover:text-purple-400 font-semibold transition w-full text-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Mark all as read
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

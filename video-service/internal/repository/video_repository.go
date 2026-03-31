@@ -10,6 +10,8 @@ type VideoRepository struct {
 	db *gorm.DB
 }
 
+var _ VideoRepositoryInterface = (*VideoRepository)(nil)
+
 func NewVideoRepository(db *gorm.DB) *VideoRepository {
 	return &VideoRepository{db: db}
 }

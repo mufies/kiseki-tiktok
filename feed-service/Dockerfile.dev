@@ -1,0 +1,40 @@
+# Development Dockerfile for Python Services with Uvicorn reload (Hot Reload)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies including protobuf compiler
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY feed-service/requirements.txt ./
+
+# Install Python dependencies (includes protobuf>=6.31.1)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install gRPC tools (already included in requirements.txt)
+
+# Copy proto files
+COPY proto/ ../proto/
+
+# Copy application code
+COPY feed-service/ .
+
+# Generate protobuf files
+RUN mkdir -p app/grpc_stubs && \
+    python -m grpc_tools.protoc \
+        --proto_path=../proto \
+        --python_out=app/grpc_stubs \
+        --grpc_python_out=app/grpc_stubs \
+        ../proto/*.proto && \
+    touch app/grpc_stubs/__init__.py
+
+# Expose port
+EXPOSE 8001
+
+# Run with uvicorn auto-reload
+CMD ["sh", "-c", "uvicorn app.main:app --reload --reload-dir /app --host 0.0.0.0 --port 8001 --log-level info"]

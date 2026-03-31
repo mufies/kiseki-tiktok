@@ -21,6 +21,7 @@ export interface LikedVideo {
   likedAt: string;
   videoId: string;
   title: string;
+  videoThumbnail?: string;
   hashtags: string[];
   categories: string[];
   available: boolean;

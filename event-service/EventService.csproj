@@ -34,4 +34,14 @@
     <Protobuf Include="..\proto\event.proto" GrpcServices="Server" />
   </ItemGroup>
 
+  <!-- Exclude Tests and Benchmarks directories from main project -->
+  <ItemGroup>
+    <Compile Remove="Tests\**\*" />
+    <EmbeddedResource Remove="Tests\**\*" />
+    <None Remove="Tests\**\*" />
+    <Compile Remove="Benchmarks\**\*" />
+    <EmbeddedResource Remove="Benchmarks\**\*" />
+    <None Remove="Benchmarks\**\*" />
+  </ItemGroup>
+
 </Project>

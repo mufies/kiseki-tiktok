@@ -12,7 +12,8 @@ public class UserClientValidation {
   private final WebClient userClient;
 
   public UserClientValidation(WebClient.Builder builder) {
-    this.userClient = builder.baseUrl("http://localhost:8080/api/users").build();
+    String baseUrl = System.getenv().getOrDefault("USER_SERVICE_URL", "http://user-service:8083");
+    this.userClient = builder.baseUrl(baseUrl + "/api/users").build();
   }
 
   public boolean isUserExists(UUID userId) {

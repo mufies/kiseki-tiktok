@@ -48,6 +48,8 @@ public class UserService {
       user.setUsername(request.getUsername());
     if (request.getAvatarUrl() != null)
       user.setAvatarUrl(request.getAvatarUrl());
+    if (request.getBio() != null)
+      user.setBio(request.getBio());
     return mapToResponse(userRepository.save(user));
   }
 
@@ -125,6 +127,7 @@ public class UserService {
         .email(user.getEmail())
         .username(user.getUsername())
         .avatarUrl(user.getAvatarUrl())
+        .bio(user.getBio())
         .followerCount(followerCount)
         .followingCount(followingCount)
         .createdAt(user.getCreatedAt())

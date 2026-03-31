@@ -12,11 +12,12 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserResponse {
-    private String id;
-    private String email;
-    private String username;
-    private String avatarUrl;
-    private int followerCount;
-    private int followingCount;
-    private LocalDateTime createdAt;
+  private String id;
+  private String email;
+  private String username;
+  private String avatarUrl;
+  private int followerCount;
+  private int followingCount;
+  private LocalDateTime createdAt;
+  private String bio;
 }

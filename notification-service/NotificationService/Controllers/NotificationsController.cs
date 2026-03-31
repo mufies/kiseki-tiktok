@@ -4,7 +4,7 @@ using NotificationService.Services;
 namespace NotificationService.Controllers;
 
 [ApiController]
-[Route("api/notifications")]
+[Route("notifications")]
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
@@ -16,24 +16,6 @@ public class NotificationsController : ControllerBase
     {
         _notificationService = notificationService;
         _logger = logger;
-    }
-
-    [HttpGet("{userId}")]
-    public async Task<IActionResult> GetNotifications(
-        string userId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
-    {
-        try
-        {
-            var result = await _notificationService.GetNotificationsAsync(userId, page, pageSize);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting notifications for user {UserId}", userId);
-            return StatusCode(500, new { message = "Failed to get notifications" });
-        }
     }
 
     [HttpGet("{userId}/unread-count")]
@@ -80,6 +62,33 @@ public class NotificationsController : ControllerBase
         {
             _logger.LogError(ex, "Error marking all notifications as read for user {UserId}", userId);
             return StatusCode(500, new { message = "Failed to mark all notifications as read" });
+        }
+    }
+
+    [HttpGet("{userId}")]
+    public async Task<IActionResult> GetNotifications(
+        string userId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] bool detailed = false)
+    {
+        try
+        {
+            if (detailed)
+            {
+                var result = await _notificationService.GetNotificationDetailsAsync(userId, page, pageSize);
+                return Ok(result);
+            }
+            else
+            {
+                var result = await _notificationService.GetNotificationsAsync(userId, page, pageSize);
+                return Ok(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting notifications for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to get notifications" });
         }
     }
 }

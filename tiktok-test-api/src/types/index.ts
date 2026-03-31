@@ -12,6 +12,32 @@ export interface VideoInteractions {
   view_count?: number;
   is_liked?: boolean;
   is_bookmarked?: boolean;
+  // Camel case variants from API
+  likeCount?: number;
+  commentCount?: number;
+  bookmarkCount?: number;
+  viewCount?: number;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+}
+
+export interface VideoOwner {
+  user_id?: string;
+  username: string;
+  display_name?: string;
+  profile_image_url?: string | null;
+  followers_count?: number;
+  following_count?: number;
+  is_verified?: boolean;
+  is_followed?: boolean;
+  // Camel case variants from API
+  userId?: string;
+  displayName?: string;
+  profileImageUrl?: string | null;
+  followersCount?: number;
+  followingCount?: number;
+  isVerified?: boolean;
+  isFollowed?: boolean;
 }
 
 export interface Video {
@@ -22,11 +48,13 @@ export interface Video {
   description?: string;
   mimeType?: string;
   size?: number;
+  videoThumbnail?: string;
   hashtags?: string[];
   createdAt?: string;
   updatedAt?: string;
   score?: number; // From feed service
   interactions?: VideoInteractions; // From feed service
+  owner?: VideoOwner; // From feed service
 }
 
 export interface VideoResponse {

@@ -5,19 +5,32 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kiseki/video-service/config"
 	grpcserver "github.com/kiseki/video-service/internal/grpc"
+	"github.com/kiseki/video-service/internal/grpc/interactionclient"
+	"github.com/kiseki/video-service/internal/grpc/userpb"
 	"github.com/kiseki/video-service/internal/grpc/videopb"
 	"github.com/kiseki/video-service/internal/handler"
 	"github.com/kiseki/video-service/internal/model"
 	"github.com/kiseki/video-service/internal/repository"
 	"github.com/kiseki/video-service/internal/service"
+	"github.com/kiseki/video-service/internal/authorization"
+	"github.com/kiseki/video-service/internal/storage"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
 
 func main() {
 	cfg := config.Load()
@@ -25,6 +38,7 @@ func main() {
 	db := config.ConnectDB(cfg)
 	db.AutoMigrate(&model.Video{})
 
+	// MinIO client for operations (upload, download, etc) - uses internal endpoint
 	minioClient, err := minio.New(cfg.MinioEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.MinioAccessKey, cfg.MinioSecretKey, ""),
 		Secure: cfg.MinioUseSSL,
@@ -39,25 +53,74 @@ func main() {
 		log.Println("Bucket created:", cfg.MinioBucket)
 	}
 
+	thumbnailsExist, _ := minioClient.BucketExists(context.Background(), cfg.MinioThumbnailsBucket)
+	if !thumbnailsExist {
+		minioClient.MakeBucket(context.Background(), cfg.MinioThumbnailsBucket, minio.MakeBucketOptions{})
+		log.Println("Thumbnails bucket created:", cfg.MinioThumbnailsBucket)
+	}
+
+	// MinIO client for generating presigned URLs - uses endpoint accessible from browser
+	log.Printf("Creating presigned client with endpoint: %s", cfg.MinioPresignedEndpoint)
+	minioPresignedClient, err := minio.New(cfg.MinioPresignedEndpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.MinioAccessKey, cfg.MinioSecretKey, ""),
+		Secure: cfg.MinioPresignedUseSSL,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to create presigned client, will use main client: %v", err)
+		minioPresignedClient = minioClient
+	} else {
+		log.Printf("Successfully created presigned client with endpoint: %s", cfg.MinioPresignedEndpoint)
+	}
+
 	repo := repository.NewVideoRepository(db)
-	svc := service.NewVideoService(repo, minioClient, cfg.MinioBucket)
+	storageClient := storage.NewMinioStorageClient(minioClient)
+	storageClient.SetPresignedClient(minioPresignedClient)
+	authService := authorization.NewVideoAuthorizationService()
+
+	// Connect to User Service for gRPC
+	// Use service name for Docker, fallback to localhost for local development
+	userServiceAddr := getEnv("USER_SERVICE_GRPC_ADDR", "user-service:50053")
+	userConn, err := grpc.NewClient(userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("Warning: Failed to connect to user service at %s: %v", userServiceAddr, err)
+	}
+	var userClient userpb.UserServiceClient
+	if userConn != nil {
+		userClient = userpb.NewUserServiceClient(userConn)
+		log.Printf("Connected to user service at %s", userServiceAddr)
+	}
+
+	// Interaction service HTTP endpoint
+	// Use service name for Docker, fallback to localhost for local development
+	interactionServiceURL := getEnv("INTERACTION_SERVICE_URL", "http://interaction-service:8084")
+	log.Printf("Using interaction service at %s", interactionServiceURL)
+
+	svc := service.NewVideoService(
+		repo,
+		storageClient,
+		authService,
+		cfg.MinioBucket,
+		cfg.MinioThumbnailsBucket,
+		cfg.MinioPresignedEndpoint,
+		cfg.MinioPublicEndpoint,
+		userClient,
+		interactionServiceURL,
+	)
 	h := handler.NewVideoHandler(svc)
 
-	// ── gRPC Server (port 9091) ───────────────────────────────────────────────
 	go func() {
-		lis, err := net.Listen("tcp", ":9091")
+		lis, err := net.Listen("tcp", ":50052")
 		if err != nil {
 			log.Fatalf("gRPC listen error: %v", err)
 		}
 		gs := grpc.NewServer()
-		videopb.RegisterVideoServiceServer(gs, grpcserver.NewVideoGRPCServer(repo))
-		log.Println("Video gRPC server listening on :9091")
+		videopb.RegisterVideoServiceServer(gs, grpcserver.NewVideoGRPCServer(repo, userClient))
+		log.Println("Video gRPC server listening on :50052")
 		if err := gs.Serve(lis); err != nil {
 			log.Fatalf("gRPC serve error: %v", err)
 		}
 	}()
 
-	// ── HTTP REST Server ──────────────────────────────────────────────────────
 	r := gin.Default()
 	r.MaxMultipartMemory = 500 << 20
 

@@ -2,20 +2,28 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class VideoInteraction(BaseModel):
-    like_count: int = 0
-    comment_count: int = 0
-    bookmark_count: int = 0
-    view_count: int = 0
-    is_liked: bool = False
-    is_bookmarked: bool = False
-
+class VideoOwner(BaseModel):
+    user_id: str
+    username: str
+    display_name: str | None = None
+    profile_image_url: str | None = None
+    followers_count: int = 0
+    following_count: int = 0
+    is_verified: bool = False
 
 class VideoResult(BaseModel):
     video_id: str
     title: str
     score: float
-    interactions: VideoInteraction | None = None
+    owner: VideoOwner | None = None
+    description: str | None = None
+    thumbnail_url: str | None = None
+    is_liked: bool = False
+    is_bookmarked: bool = False
+    like_count: int = 0
+    comment_count: int = 0
+    bookmark_count: int = 0
+    view_count: int = 0
 
 
 class FeedResponse(BaseModel):

@@ -1,0 +1,253 @@
+version: '3.8'
+
+# =====================================
+# NOTE: This docker-compose uses containerized infrastructure
+# Run infrastructure first: docker-compose -f docker-compose.infrastructure.yml up -d
+# Then run application services: docker-compose up -d
+# =====================================
+
+services:
+  # =====================================
+  # Application Services
+  # =====================================
+
+  user-service:
+    build:
+      context: .
+      dockerfile: ./user-service/Dockerfile.dev
+    container_name: tiktok-user-service
+    ports:
+      - "8081:8083"  # HTTP
+      - "50053:50053"  # gRPC
+      - "5006:5006"  # Debug
+    environment:
+      # Use PostgreSQL container
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/userdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Use Kafka container
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - ./user-service/userservice:/app
+      - ./proto:/proto  # Mount proto files for hot reload
+      - maven_user_cache:/root/.m2
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  video-service:
+    build:
+      context: ./video-service
+      dockerfile: Dockerfile.dev
+    container_name: tiktok-video-service
+    extra_hosts:
+      - "minio-public:host-gateway"
+    ports:
+      - "8082:8081"  # HTTP
+      - "50052:50052"  # gRPC
+    environment:
+      # Use PostgreSQL container
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: videodb
+      # Use MinIO container
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: localhost:9010
+      MINIO_PRESIGNED_ENDPOINT: minio-public:9010
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: videos
+      MINIO_THUMBNAILS_BUCKET: thumbnails
+      MINIO_USE_SSL: "false"
+      MINIO_PRESIGNED_USE_SSL: "false"
+      SERVER_PORT: "8081"
+      # Service discovery
+      USER_SERVICE_GRPC_ADDR: user-service:50053
+      INTERACTION_SERVICE_URL: http://interaction-service:8084
+    volumes:
+      - ./video-service:/app
+      - ./proto:/app/proto  # Mount proto files (for reference/regeneration)
+      - go_video_cache:/go/pkg/mod
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  interaction-service:
+    build:
+      context: .
+      dockerfile: ./interaction-service/Dockerfile.dev
+    container_name: tiktok-interaction-service
+    ports:
+      - "8084:8084"  # HTTP
+      - "50054:50054"  # gRPC
+      - "5005:5005"  # Debug
+    environment:
+      # Use PostgreSQL container
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/interactiondb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Use Kafka container
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GRPC_SERVER_PORT: 50054
+      GRPC_CLIENT_USER_SERVICE_ADDRESS: static://user-service:50053
+      GRPC_CLIENT_VIDEO_SERVICE_ADDRESS: static://video-service:50052
+      # REST API endpoints
+      VIDEO_SERVICE_URL: http://video-service:8081
+      USER_SERVICE_URL: http://user-service:8083
+    volumes:
+      - ./interaction-service/interactionservice:/app
+      - ./proto:/proto  # Mount proto files for hot reload (matches pom.xml protoSourceRoot)
+      - maven_interaction_cache:/root/.m2
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  event-service:
+    build:
+      context: .
+      dockerfile: ./event-service/Dockerfile.dev
+    container_name: tiktok-event-service
+    ports:
+      - "5001:5001"  # HTTP
+      - "5002:5002"  # gRPC
+    environment:
+      # Use PostgreSQL and Redis containers
+      ConnectionStrings__PostgreSQL: "Host=postgres;Port=5432;Database=eventdb;Username=postgres;Password=postgres"
+      ConnectionStrings__Redis: "redis:6379"
+      VideoService__GrpcAddress: "http://video-service:50052"
+      ASPNETCORE_URLS: "http://+:5001"
+      Kestrel__Endpoints__Http__Url: "http://0.0.0.0:5001"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:5002"
+    volumes:
+      - ./event-service:/app
+      - ./proto:/proto  # Mount proto files
+      - dotnet_event_cache:/root/.dotnet
+      - dotnet_event_nuget:/root/.nuget
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  feed-service:
+    build:
+      context: .
+      dockerfile: ./feed-service/Dockerfile.dev
+    container_name: tiktok-feed-service
+    ports:
+      - "8001:8001"  # HTTP
+    environment:
+      # Use PostgreSQL and Redis containers
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/feeddb"
+      REDIS_URL: "redis://redis:6379"
+      VIDEO_SERVICE_GRPC: "video-service:50052"
+      EVENT_SERVICE_GRPC: "event-service:5002"
+      INTERACTION_SERVICE_GRPC: "interaction-service:50054"
+      USER_SERVICE_GRPC: "user-service:50053"
+      PORT: "8001"
+    volumes:
+      - ./feed-service:/app
+      - ./proto:/app/proto  # Mount proto files
+      - python_feed_cache:/root/.cache/pip
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile.dev
+    container_name: tiktok-notification-service
+    ports:
+      - "8085:8085"  # HTTP
+      - "9093:9093"  # gRPC
+    environment:
+      # Use PostgreSQL and Redis containers
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=notificationdb;Username=postgres;Password=postgres"
+      ConnectionStrings__RedisConnection: "redis:6379"
+      # Use Kafka container
+      Kafka__BootstrapServers: "kafka:9092"
+      ExternalServices__UserServiceUrl: "http://user-service:8083/api"
+      ExternalServices__VideoServiceUrl: "http://video-service:8081/api"
+      ExternalServices__InteractionServiceUrl: "http://interaction-service:8084"
+      ASPNETCORE_URLS: "http://+:8085"
+      Kestrel__Endpoints__Http__Url: "http://0.0.0.0:8085"
+      Kestrel__Endpoints__Grpc__Url: "http://0.0.0.0:9093"
+    volumes:
+      - ./notification-service:/app
+      - ./proto:/proto  # Mount proto files
+      - dotnet_notification_cache:/root/.dotnet
+      - dotnet_notification_nuget:/root/.nuget
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile.dev
+    container_name: tiktok-api-gateway
+    depends_on:
+      - user-service
+      - video-service
+      - interaction-service
+      - event-service
+      - feed-service
+      - notification-service
+    ports:
+      - "8080:8080"  # HTTP
+      - "50051:50051"  # gRPC
+    environment:
+      USER_SERVICE_URL: "http://user-service:8083"
+      VIDEO_SERVICE_URL: "http://video-service:8081"
+      INTERACTION_SERVICE_URL: "http://interaction-service:8084"
+      EVENT_SERVICE_URL: "http://event-service:5001"
+      FEED_SERVICE_URL: "http://feed-service:8001"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8085"
+    volumes:
+      - ./api-gateway:/app
+      - go_gateway_cache:/go/pkg/mod
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./tiktok-test-api
+      dockerfile: Dockerfile.dev
+    container_name: tiktok-frontend
+    depends_on:
+      - api-gateway
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: "http://localhost:8080"
+    volumes:
+      - ./tiktok-test-api:/app
+      - /app/node_modules
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+# =====================================
+# Networks
+# =====================================
+networks:
+  tiktok-network:
+    # Use existing network that kafka/zookeeper are connected to
+    external: true
+    name: tiktok-clone_tiktok-network
+
+# =====================================
+# Volumes
+# =====================================
+volumes:
+  maven_user_cache:
+  maven_interaction_cache:
+  dotnet_event_cache:
+  dotnet_event_nuget:
+  dotnet_notification_cache:
+  dotnet_notification_nuget:
+  python_feed_cache:
+  go_video_cache:
+  go_gateway_cache:

@@ -1,0 +1,32 @@
+# Development Dockerfile for Go Services with Air (Hot Reload)
+FROM golang:alpine
+
+# Install dependencies including FFmpeg and protobuf tools
+RUN apk add --no-cache git gcc musl-dev ffmpeg protobuf protobuf-dev
+
+WORKDIR /app
+
+# Install protoc plugins for Go
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Copy go mod files first
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Copy Air config
+COPY .air.toml ./
+
+# Copy source code (will be mounted as volume in docker-compose)
+COPY . .
+
+# Expose ports
+EXPOSE 50052 8081
+
+# Run Air (it's in GOPATH/bin which is in PATH)
+CMD ["air", "-c", ".air.toml"]

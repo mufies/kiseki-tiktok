@@ -10,11 +10,9 @@ public class WatchEventService(
 {
     public async Task ProcessAsync(WatchEvent watchEvent, CancellationToken ct = default)
     {
-        // 1. Persist raw event
         await eventRepo.SaveEventAsync(watchEvent, ct);
         logger.LogInformation("Saved watch event: user={UserId}, video={VideoId}", watchEvent.UserId, watchEvent.VideoId);
 
-        // 2. Rebuild + cache profile
         await profileService.RebuildAndCacheAsync(watchEvent.UserId, ct);
     }
 }

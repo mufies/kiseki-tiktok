@@ -6,6 +6,7 @@ import com.kiseki.interaction.dto.response.CommentResponse;
 import com.kiseki.interaction.dto.response.LikeResponse;
 import com.kiseki.interaction.dto.response.LikedVideoResponse;
 import com.kiseki.interaction.dto.response.VideoInteractionResponse;
+import com.kiseki.interaction.service.InteractionCommandService;
 import com.kiseki.interaction.service.InteractionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,13 +21,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InteractionController {
 
+  private final InteractionCommandService interactionCommandService;
   private final InteractionService interactionService;
 
   @PostMapping("/{videoId}/like")
   public ResponseEntity<LikeResponse> toggleLike(
       @PathVariable UUID videoId,
       @RequestHeader("X-User-Id") UUID userId) {
-    LikeResponse response = interactionService.toggleLike(videoId, userId);
+    LikeResponse response = interactionCommandService.toggleLike(videoId, userId);
     return ResponseEntity.ok(response);
   }
 
@@ -34,7 +36,7 @@ public class InteractionController {
   public ResponseEntity<BookMarkedResponse> toggleBookMarked(
       @PathVariable UUID videoId,
       @RequestHeader("X-User-Id") UUID userId) {
-    BookMarkedResponse response = interactionService.toggleBookMarked(videoId, userId);
+    BookMarkedResponse response = interactionCommandService.toggleBookmark(videoId, userId);
     return ResponseEntity.ok(response);
   }
 
@@ -42,7 +44,7 @@ public class InteractionController {
   public ResponseEntity<Void> recordView(
       @PathVariable UUID videoId,
       @RequestHeader("X-User-Id") UUID userId) {
-    interactionService.recordView(videoId, userId);
+    interactionCommandService.recordView(videoId, userId);
     return ResponseEntity.status(HttpStatus.CREATED).build();
   }
 
@@ -51,7 +53,7 @@ public class InteractionController {
       @PathVariable UUID videoId,
       @RequestHeader("X-User-Id") UUID userId,
       @RequestBody CommentRequest request) {
-    CommentResponse response = interactionService.addComment(videoId, userId, request);
+    CommentResponse response = interactionCommandService.addComment(videoId, userId, request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 

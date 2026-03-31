@@ -13,17 +13,18 @@ import java.util.UUID;
 
 @Repository
 public interface InteractionRepository extends JpaRepository<Interaction, Long> {
-    Optional<Interaction> findByUserIdAndVideoIdAndType(UUID userId, UUID videoId, InteractionType type);
-    long countByVideoIdAndType(UUID videoId, InteractionType type);
-    List<Interaction> findByVideoIdAndTypeOrderByCreatedAtDesc(UUID videoId, InteractionType type);
+  Optional<Interaction> findByUserIdAndVideoIdAndType(UUID userId, UUID videoId, InteractionType type);
 
-    // Bulk queries for multiple videos
-    List<Interaction> findByVideoIdInAndType(List<UUID> videoIds, InteractionType type);
-    List<Interaction> findByUserIdAndVideoIdInAndType(UUID userId, List<UUID> videoIds, InteractionType type);
+  long countByVideoIdAndType(UUID videoId, InteractionType type);
 
-    @Query("SELECT i.videoId, i.type, COUNT(i) FROM Interaction i WHERE i.videoId IN :videoIds GROUP BY i.videoId, i.type")
-    List<Object[]> countInteractionsByVideoIds(@Param("videoIds") List<UUID> videoIds);
+  List<Interaction> findByVideoIdAndTypeOrderByCreatedAtDesc(UUID videoId, InteractionType type);
 
-    // Get user's interactions by type, ordered by most recent
-    List<Interaction> findByUserIdAndTypeOrderByCreatedAtDesc(UUID userId, InteractionType type);
+  List<Interaction> findByVideoIdInAndType(List<UUID> videoIds, InteractionType type);
+
+  List<Interaction> findByUserIdAndVideoIdInAndType(UUID userId, List<UUID> videoIds, InteractionType type);
+
+  @Query("SELECT i.videoId, i.type, COUNT(i) FROM Interaction i WHERE i.videoId IN :videoIds GROUP BY i.videoId, i.type")
+  List<Object[]> countInteractionsByVideoIds(@Param("videoIds") List<UUID> videoIds);
+
+  List<Interaction> findByUserIdAndTypeOrderByCreatedAtDesc(UUID userId, InteractionType type);
 }

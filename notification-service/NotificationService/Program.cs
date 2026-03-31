@@ -18,6 +18,7 @@ builder.Services.AddSwaggerGen();
 // Configure Settings
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("Kafka"));
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<ExternalServiceSettings>(builder.Configuration.GetSection("ExternalServices"));
 
 // Database
 builder.Services.AddDbContext<NotificationDbContext>(options =>
@@ -36,6 +37,7 @@ builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 // Services
 builder.Services.AddScoped<INotificationService, NotificationService.Services.NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IExternalServiceClient, ExternalServiceClient>();
 
 // Background Services
 builder.Services.AddHostedService<KafkaConsumerService>();

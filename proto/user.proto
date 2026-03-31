@@ -19,6 +19,7 @@ service UserService {
 
   // Get user details by ID
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc CheckFollowStatus(UserFollowStatusRequest) returns (UserFollowStatusResponse);
 }
 
 message VerifyUserRequest {
@@ -36,6 +37,15 @@ message GetUserRequest {
 
 message GetUserResponse {
   User user = 1;
+}
+
+message UserFollowStatusRequest {
+ string user_id = 1;
+ string user_id_check = 2;
+}
+
+message UserFollowStatusResponse {
+  bool followed = 1;
 }
 
 message User {

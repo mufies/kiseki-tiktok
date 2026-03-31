@@ -1,8 +1,10 @@
 import { useRef, useEffect, useState } from 'react';
-import { Heart, Bookmark, Volume2, VolumeX, AlertCircle, MessageCircle, Share2, X, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Heart, Bookmark, Volume2, VolumeX, AlertCircle, MessageCircle, Share2, X, Send, UserPlus, UserMinus } from 'lucide-react';
 import { eventAPI } from '../api/event';
 import { interactionAPI } from '../api/interaction';
 import { videoAPI } from '../api/video';
+import { userAPI } from '../api/user';
 import { useAuth } from '../context/AuthContext';
 import type { Video } from '../types';
 
@@ -14,12 +16,14 @@ interface VideoCardProps {
 
 interface Comment {
   id: string;
+  userId: string;
   author: string;
   content: string;
   timestamp: string;
 }
 
 export default function VideoCard({ video, isActive, onVideoView }: VideoCardProps) {
+  const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLiked, setIsLiked] = useState(video.interactions?.is_liked ?? false);
   const [isBookmarked, setIsBookmarked] = useState(video.interactions?.is_bookmarked ?? false);
@@ -35,13 +39,17 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   // Local state to track counts for real-time updates
-  const [likeCount, setLikeCount] = useState(video.interactions?.like_count ?? 0);
-  const [bookmarkCount, setBookmarkCount] = useState(video.interactions?.bookmark_count ?? 0);
-  const [commentCount, setCommentCount] = useState(video.interactions?.comment_count ?? 0);
+  const [likeCount, setLikeCount] = useState(video.interactions?.like_count ?? video.interactions?.likeCount ?? 0);
+  const [bookmarkCount, setBookmarkCount] = useState(video.interactions?.bookmark_count ?? video.interactions?.bookmarkCount ?? 0);
+  const [commentCount, setCommentCount] = useState(video.interactions?.comment_count ?? video.interactions?.commentCount ?? 0);
+  const [viewCount, setViewCount] = useState(video.interactions?.view_count ?? video.interactions?.viewCount ?? 0);
+  const [isFollowing, setIsFollowing] = useState(video.owner?.is_followed ?? video.owner?.isFollowed ?? false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   const watchEventSentRef = useRef(false);
+  const viewRecordedRef = useRef(false);  // Track if view has been recorded
 
-  // Fetch video URL with presigned URL
+  // Fetch video URL with presigned URL and update video data
   useEffect(() => {
     const loadVideo = async () => {
       try {
@@ -49,6 +57,25 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
         if (!videoId) return;
         const videoData = await videoAPI.getVideo(videoId);
         setVideoUrl(videoData.streamUrl || null);
+
+        // Update states from fetched video data
+        if (videoData.video) {
+          // Update interaction counts
+          if (videoData.video.interactions) {
+            setLikeCount(videoData.video.interactions.likeCount ?? videoData.video.interactions.like_count ?? likeCount);
+            setBookmarkCount(videoData.video.interactions.bookmarkCount ?? videoData.video.interactions.bookmark_count ?? bookmarkCount);
+            setCommentCount(videoData.video.interactions.commentCount ?? videoData.video.interactions.comment_count ?? commentCount);
+            setViewCount(videoData.video.interactions.viewCount ?? videoData.video.interactions.view_count ?? viewCount);
+            setIsLiked(videoData.video.interactions.isLiked ?? videoData.video.interactions.is_liked ?? isLiked);
+            setIsBookmarked(videoData.video.interactions.isBookmarked ?? videoData.video.interactions.is_bookmarked ?? isBookmarked);
+          }
+
+          // Update follow status from owner data
+          if (videoData.video.owner) {
+            const followStatus = videoData.video.owner.isFollowed ?? videoData.video.owner.is_followed ?? false;
+            setIsFollowing(followStatus);
+          }
+        }
       } catch (error) {
         console.error('Failed to load video:', error);
       } finally {
@@ -77,6 +104,19 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
     }
   }, [isActive, videoUrl]);
 
+  // Record view when video becomes active (first time only)
+  useEffect(() => {
+    if (isActive && !viewRecordedRef.current && onVideoView) {
+      const videoId = video.id || video.video_id;
+      if (videoId) {
+        onVideoView(videoId);
+        viewRecordedRef.current = true;
+        setViewCount((prev) => prev + 1);  // Optimistically update view count
+        console.log(`View recorded for video: ${videoId}`);
+      }
+    }
+  }, [isActive, video.id, video.video_id, onVideoView]);
+
   // Load comments when modal opens
   useEffect(() => {
     if (!showCommentModal) return;
@@ -91,6 +131,7 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
         setComments(
           (fetchedComments as any).map((comment: any) => ({
             id: comment.id,
+            userId: comment.userId,
             author: comment.username,
             content: comment.content, timestamp: new Date(comment.createdAt).toLocaleString('en-US', {
               timeStyle: 'short',
@@ -202,6 +243,38 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
     }
   };
 
+  const handleUsernameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const userId = video.owner?.userId ?? video.owner?.user_id ?? video.ownerId;
+    if (userId) {
+      navigate(`/user/${userId}`);
+    }
+  };
+
+  const handleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const userId = video.owner?.userId ?? video.owner?.user_id ?? video.ownerId;
+    if (!userId || !user || isFollowLoading) return;
+
+    // Don't allow following yourself
+    if (userId === user.id || userId === user.user_id) return;
+
+    try {
+      setIsFollowLoading(true);
+      if (isFollowing) {
+        await userAPI.unfollowUser(userId);
+        setIsFollowing(false);
+      } else {
+        await userAPI.followUser(userId);
+        setIsFollowing(true);
+      }
+    } catch (error) {
+      console.error('Failed to follow/unfollow user:', error);
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
   const handleAddComment = async () => {
     if (!commentInput.trim() || !user) return;
 
@@ -215,6 +288,7 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
         author: user.username,
         content: commentInput,
         timestamp: 'just now',
+        userId: '',
       };
 
       setComments([...comments, newComment]);
@@ -249,226 +323,265 @@ export default function VideoCard({ video, isActive, onVideoView }: VideoCardPro
   }
 
   return (
-    <div className="relative w-full h-full bg-black flex items-center justify-center group">
-      {/* Mute indicator */}
-      {isActive && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <span className="bg-black/70 text-white text-xs px-3 py-1 rounded-full">
-            {isMuted ? '🔇 Muted' : '🔊 Unmuted'}
-          </span>
-        </div>
-      )}
-
-      {/* Main video container */}
-      <div className="relative w-full h-full">
-        {videoUrl ? (
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            muted={isMuted}
-            loop
-            playsInline
-            onEnded={handleVideoEnd}
-            onClick={() => setIsMuted(!isMuted)}
-            className="w-full h-full object-contain cursor-pointer"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-black">
-            <div className="text-gray-400 flex flex-col items-center">
-              <AlertCircle size={40} className="mb-2" />
-              <p>Failed to load video</p>
-            </div>
+    <div className="relative w-full h-full bg-black flex flex-col">
+      {/* Video Container - Resize based on comments visibility */}
+      <div className={`relative bg-black transition-all duration-300 ${showCommentModal ? 'h-1/2' : 'h-full'}`}>
+        {/* Mute indicator */}
+        {isActive && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <span className="bg-black/70 text-white text-xs px-3 py-1 rounded-full">
+              {isMuted ? '🔇 Muted' : '🔊 Unmuted'}
+            </span>
           </div>
         )}
-      </div>
 
-      {/* Right sidebar with action buttons */}
-      <div className="absolute right-4 bottom-24 z-20 flex flex-col gap-4">
-        {/* Like button */}
-        <button
-          onClick={handleLike}
-          className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
-        >
-          <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
-            <Heart size={34} fill={isLiked ? '#ef4444' : 'transparent'} color={isLiked ? '#ef4444' : 'white'} />
-          </div>
-          <span className="text-xs font-semibold drop-shadow-md">
-            {likeCount > 999 ? Math.floor(likeCount / 1000) + 'k' : likeCount}
-          </span>
-        </button>
-
-        {/* Comment button */}
-        <button
-          onClick={() => setShowCommentModal(true)}
-          className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
-        >
-          <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
-            <MessageCircle size={32} color="white" fill="white" className="scale-x-[-1]" />
-          </div>
-          <span className="text-xs font-semibold drop-shadow-md">
-            {commentCount > 999 ? Math.floor(commentCount / 1000) + 'k' : commentCount}
-          </span>
-        </button>
-
-        {/* Bookmark button */}
-        <button
-          onClick={handleBookmark}
-          className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
-        >
-          <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
-            <Bookmark size={30} fill={isBookmarked ? '#eab308' : 'transparent'} color={isBookmarked ? '#eab308' : 'white'} />
-          </div>
-          <span className="text-xs font-semibold drop-shadow-md">
-            {bookmarkCount > 999 ? Math.floor(bookmarkCount / 1000) + 'k' : bookmarkCount}
-          </span>
-        </button>
-
-        {/* Share button */}
-        <button
-          className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
-        >
-          <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
-            <Share2 size={32} color="white" fill="white" />
-          </div>
-          <span className="text-xs font-semibold drop-shadow-md">Share</span>
-        </button>
-
-        {/* Mute button */}
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform mt-2"
-        >
-          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition border border-white/20">
-            {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </div>
-        </button>
-      </div>
-
-      {/* Bottom overlay with video metadata */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-24 pb-4 px-4 z-10 pointer-events-none">
-        <div className="text-white max-w-[80%] pointer-events-auto">
-          {/* User handling / Title */}
-          <h3 className="text-base font-bold mb-1 line-clamp-1">@{video.ownerId || 'user'}</h3>
-
-          {/* Description */}
-          <p className="text-sm text-gray-100 mb-2 line-clamp-2">{video.description || video.title}</p>
-
-          {/* Hashtags */}
-          {video.hashtags && video.hashtags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {(Array.isArray(video.hashtags) ? video.hashtags : []).map((tag, idx) => (
-                <span key={idx} className="text-sm font-semibold hover:underline cursor-pointer">
-                  #{tag}
-                </span>
-              ))}
+        {/* Main video container */}
+        <div className="relative w-full h-full flex items-center justify-center group">
+          {videoUrl ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              muted={isMuted}
+              loop
+              playsInline
+              onEnded={handleVideoEnd}
+              onClick={() => setIsMuted(!isMuted)}
+              className="w-full h-full object-contain cursor-pointer"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-black">
+              <div className="text-gray-400 flex flex-col items-center">
+                <AlertCircle size={40} className="mb-2" />
+                <p>Failed to load video</p>
+              </div>
             </div>
           )}
 
-          {/* Music/Sound track ticker (fake for now to emulate tiktok) */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="animate-pulse">🎵</div>
-            <span className="text-sm">Original sound - {video.title}</span>
+          {/* Right sidebar with action buttons */}
+          <div className="absolute right-4 bottom-24 z-20 flex flex-col gap-4">
+            {/* Like button */}
+            <button
+              onClick={handleLike}
+              className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
+            >
+              <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
+                <Heart size={34} fill={isLiked ? '#ef4444' : 'transparent'} color={isLiked ? '#ef4444' : 'white'} />
+              </div>
+              <span className="text-xs font-semibold drop-shadow-md">
+                {likeCount > 999 ? Math.floor(likeCount / 1000) + 'k' : likeCount}
+              </span>
+            </button>
+
+            {/* Comment button */}
+            <button
+              onClick={() => setShowCommentModal(true)}
+              className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
+            >
+              <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
+                <MessageCircle size={32} color="white" fill="white" className="scale-x-[-1]" />
+              </div>
+              <span className="text-xs font-semibold drop-shadow-md">
+                {commentCount > 999 ? Math.floor(commentCount / 1000) + 'k' : commentCount}
+              </span>
+            </button>
+
+            {/* Bookmark button */}
+            <button
+              onClick={handleBookmark}
+              className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
+            >
+              <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
+                <Bookmark size={30} fill={isBookmarked ? '#eab308' : 'transparent'} color={isBookmarked ? '#eab308' : 'white'} />
+              </div>
+              <span className="text-xs font-semibold drop-shadow-md">
+                {bookmarkCount > 999 ? Math.floor(bookmarkCount / 1000) + 'k' : bookmarkCount}
+              </span>
+            </button>
+
+            {/* Share button */}
+            <button
+              className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform"
+            >
+              <div className="w-12 h-12 rounded-full flex flex-col items-center justify-center drop-shadow-md">
+                <Share2 size={32} color="white" fill="white" />
+              </div>
+              <span className="text-xs font-semibold drop-shadow-md">Share</span>
+            </button>
+
+            {/* Mute button */}
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="flex flex-col items-center gap-1 text-white hover:scale-110 transition-transform mt-2"
+            >
+              <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition border border-white/20">
+                {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              </div>
+            </button>
           </div>
 
-          {/* Interaction stats */}
-          {video.interactions && (
-            <div className="flex items-center gap-4 text-xs text-white/70 mb-2">
-              {video.interactions.view_count !== undefined && (
-                <span>👁️ {video.interactions.view_count > 999 ? Math.floor(video.interactions.view_count / 1000) + 'k' : video.interactions.view_count} views</span>
-              )}
-              {video.interactions.like_count !== undefined && (
-                <span>❤️ {video.interactions.like_count} likes</span>
-              )}
-            </div>
-          )}
+          {/* Bottom overlay with video metadata */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-24 pb-4 px-4 z-10 pointer-events-none">
+            <div className="text-white max-w-[80%] pointer-events-auto">
+              {/* Username with Follow Button */}
+              <div className="flex items-center gap-3 mb-1">
+                <a
+                  href={`/user/${video.owner?.userId ?? video.owner?.user_id ?? video.ownerId}`}
+                  onClick={handleUsernameClick}
+                  className="text-base font-bold line-clamp-1 hover:underline flex items-center gap-1"
+                >
+                  @{video.owner?.username || video.title || 'user'}
+                  {(video.owner?.isVerified ?? video.owner?.is_verified) && <span className="text-blue-400">✓</span>}
+                </a>
 
-          {/* Watch progress */}
-          <div className="text-xs text-white/50 py-1">
-            Watched: {Math.round(watchPercentage)}%
+                {/* Follow Button - Only show if not own video */}
+                {user && (
+                  (video.owner?.userId ?? video.owner?.user_id ?? video.ownerId) !== user.id &&
+                  (video.owner?.userId ?? video.owner?.user_id ?? video.ownerId) !== user.user_id
+                ) && (
+                  <button
+                    onClick={handleFollow}
+                    disabled={isFollowLoading}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                      isFollowing
+                        ? 'bg-zinc-700 hover:bg-zinc-600 text-white'
+                        : 'bg-purple-600 hover:bg-purple-700 text-white'
+                    } ${isFollowLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isFollowLoading ? (
+                      <span className="animate-spin">⏳</span>
+                    ) : isFollowing ? (
+                      <>
+                        <UserMinus size={12} />
+                        <span>Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={12} />
+                        <span>Follow</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Description */}
+              <p className="text-sm text-gray-100 mb-2 line-clamp-2">{video.description || video.title}</p>
+
+              {/* Hashtags */}
+              {video.hashtags && video.hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {(Array.isArray(video.hashtags) ? video.hashtags : []).map((tag, idx) => (
+                    <span key={idx} className="text-sm font-semibold hover:underline cursor-pointer">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Music/Sound track ticker (fake for now to emulate tiktok) */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="animate-pulse">🎵</div>
+                <span className="text-sm">Original sound - {video.owner?.username || video.title}</span>
+              </div>
+
+              {/* Interaction stats */}
+              {video.interactions && (
+                <div className="flex items-center gap-4 text-xs text-white/70 mb-2">
+                  {viewCount !== undefined && (
+                    <span>👁️ {viewCount > 999 ? Math.floor(viewCount / 1000) + 'k' : viewCount} views</span>
+                  )}
+                  {likeCount !== undefined && (
+                    <span>❤️ {likeCount} likes</span>
+                  )}
+                </div>
+              )}
+
+              {/* Watch progress */}
+              <div className="text-xs text-white/50 py-1">
+                Watched: {Math.round(watchPercentage)}%
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Comment Modal */}
+      {/* Comment Panel - Slide up from bottom */}
       {showCommentModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end">
-          {/* Close on background click */}
-          <div className="absolute inset-0" onClick={() => setShowCommentModal(false)} />
+        <div className="h-1/2 bg-zinc-900 border-t border-zinc-800 flex flex-col overflow-hidden" style={{ animation: 'slideUp 0.3s ease-out' }}>
+          {/* Drag handle */}
+          <div className="w-full flex justify-center pt-3 pb-2">
+            <div className="w-12 h-1 bg-zinc-700 rounded-full"></div>
+          </div>
 
-          {/* Modal Content - Slide up from bottom */}
-          <div className="relative w-full bg-zinc-900 rounded-t-3xl max-h-[80vh] flex flex-col" style={{ animation: 'slideUp 0.3s ease-out' }}>
-            {/* Drag handle */}
-            <div className="w-full flex justify-center pt-3 pb-2">
-              <div className="w-12 h-1 bg-zinc-700 rounded-full"></div>
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Comments</h2>
+              <p className="text-sm text-zinc-400">{comments.length} comments</p>
             </div>
+            <button onClick={() => setShowCommentModal(false)} className="text-zinc-400 hover:text-white transition">
+              <X size={24} />
+            </button>
+          </div>
 
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-white">Comments</h2>
-                <p className="text-sm text-zinc-400">{comments.length} comments</p>
+          {/* Comments List */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-hide">
+            {loadingComments ? (
+              <div className="text-center text-zinc-500 py-8">
+                <div className="w-6 h-6 border-3 border-zinc-600 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
+                <p>Loading comments...</p>
               </div>
-              <button onClick={() => setShowCommentModal(false)} className="text-zinc-400 hover:text-white transition">
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* Comments List */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-hide">
-              {loadingComments ? (
-                <div className="text-center text-zinc-500 py-8">
-                  <div className="w-6 h-6 border-3 border-zinc-600 border-t-purple-500 rounded-full animate-spin mx-auto mb-3"></div>
-                  <p>Loading comments...</p>
-                </div>
-              ) : comments.length === 0 ? (
-                <div className="text-center text-zinc-500 py-8">
-                  <p>No comments yet</p>
-                  <p className="text-xs mt-2">Be the first to comment!</p>
-                </div>
-              ) : (
-                <>
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
-                        {comment.author.charAt(0).toUpperCase()}
-                      </div>
-
-                      {/* Comment Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white text-sm">@{comment.author}</span>
-                          <span className="text-xs text-zinc-500">{comment.timestamp}</span>
-                        </div>
-                        <p className="text-white text-sm mt-1 break-words">{comment.content}</p>
-                      </div>
+            ) : comments.length === 0 ? (
+              <div className="text-center text-zinc-500 py-8">
+                <p>No comments yet</p>
+                <p className="text-xs mt-2">Be the first to comment!</p>
+              </div>
+            ) : (
+              <>
+                {comments.map((comment) => (
+                  <div key={comment.id} className="flex gap-3">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
+                      {comment.author.charAt(0).toUpperCase()}
                     </div>
-                  ))}
-                  <div ref={commentsEndRef} />
-                </>
-              )}
-            </div>
 
-            {/* Comment Input */}
-            <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-950">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={commentInput}
-                  onChange={(e) => setCommentInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-                  placeholder="Add comment..."
-                  className="flex-1 bg-zinc-800 text-white text-sm px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-zinc-500"
-                  autoFocus
-                />
-                <button
-                  onClick={handleAddComment}
-                  disabled={!commentInput.trim()}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white p-2.5 rounded-full transition flex items-center justify-center flex-shrink-0"
-                >
-                  <Send size={20} />
-                </button>
-              </div>
+                    {/* Comment Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`/user/${comment.userId}`}
+                          className="font-semibold text-white text-sm hover:underline"
+                        >
+                          @{comment.author}
+                        </a>                          <span className="text-xs text-zinc-499">{comment.timestamp}</span>
+                      </div>
+                      <p className="text-white text-sm mt-1 break-words">{comment.content}</p>
+                    </div>
+                  </div>
+                ))}
+                <div ref={commentsEndRef} />
+              </>
+            )}
+          </div>
+
+          {/* Comment Input */}
+          <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-950">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
+                placeholder="Add comment..."
+                className="flex-1 bg-zinc-800 text-white text-sm px-4 py-2.5 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-zinc-500"
+              />
+              <button
+                onClick={handleAddComment}
+                disabled={!commentInput.trim()}
+                className="bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white p-2.5 rounded-full transition flex items-center justify-center flex-shrink-0"
+              >
+                <Send size={20} />
+              </button>
             </div>
           </div>
         </div>

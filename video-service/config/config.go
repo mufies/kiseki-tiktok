@@ -11,17 +11,23 @@ import (
 )
 
 type Config struct {
-	DBHost         string
-	DBPort         string
-	DBUser         string
-	DBPassword     string
-	DBName         string
-	MinioEndpoint  string
-	MinioAccessKey string
-	MinioSecretKey string
-	MinioBucket    string
-	MinioUseSSL    bool
-	ServerPort     string
+	DBHost                     string
+	DBPort                     string
+	DBUser                     string
+	DBPassword                 string
+	DBName                     string
+	MinioEndpoint              string
+	MinioPublicEndpoint        string
+	MinioPresignedEndpoint     string
+	MinioAccessKey             string
+	MinioSecretKey             string
+	MinioBucket                string
+	MinioThumbnailsBucket      string
+	MinioUseSSL                bool
+	MinioPresignedUseSSL       bool
+	ServerPort                 string
+	UserServiceGRPCAddr        string
+	InteractionServiceGRPCAddr string
 }
 
 func Load() *Config {
@@ -29,18 +35,38 @@ func Load() *Config {
 		log.Println("No .env file, using enviroment variables")
 	}
 
+	thumbnailsBucket := os.Getenv("MINIO_THUMBNAILS_BUCKET")
+	if thumbnailsBucket == "" {
+		thumbnailsBucket = os.Getenv("MINIO_BUCKET") + "-thumbnails"
+	}
+
+	minioPublicEndpoint := os.Getenv("MINIO_PUBLIC_ENDPOINT")
+	if minioPublicEndpoint == "" {
+		minioPublicEndpoint = os.Getenv("MINIO_ENDPOINT")
+	}
+
+	// Endpoint for generating presigned URLs (must be accessible from both container and browser)
+	minioPresignedEndpoint := os.Getenv("MINIO_PRESIGNED_ENDPOINT")
+	if minioPresignedEndpoint == "" {
+		minioPresignedEndpoint = os.Getenv("MINIO_ENDPOINT")
+	}
+
 	return &Config{
-		DBHost:         os.Getenv("DB_HOST"),
-		DBPort:         os.Getenv("DB_PORT"),
-		DBUser:         os.Getenv("DB_USER"),
-		DBPassword:     os.Getenv("DB_PASSWORD"),
-		DBName:         os.Getenv("DB_NAME"),
-		MinioEndpoint:  os.Getenv("MINIO_ENDPOINT"),
-		MinioAccessKey: os.Getenv("MINIO_ACCESS_KEY"),
-		MinioSecretKey: os.Getenv("MINIO_SECRET_KEY"),
-		MinioBucket:    os.Getenv("MINIO_BUCKET"),
-		MinioUseSSL:    os.Getenv("MINIO_USE_SSL") == "true",
-		ServerPort:     os.Getenv("SERVER_PORT"),
+		DBHost:                 os.Getenv("DB_HOST"),
+		DBPort:                 os.Getenv("DB_PORT"),
+		DBUser:                 os.Getenv("DB_USER"),
+		DBPassword:             os.Getenv("DB_PASSWORD"),
+		DBName:                 os.Getenv("DB_NAME"),
+		MinioEndpoint:          os.Getenv("MINIO_ENDPOINT"),
+		MinioPublicEndpoint:    minioPublicEndpoint,
+		MinioPresignedEndpoint: minioPresignedEndpoint,
+		MinioAccessKey:         os.Getenv("MINIO_ACCESS_KEY"),
+		MinioSecretKey:         os.Getenv("MINIO_SECRET_KEY"),
+		MinioBucket:            os.Getenv("MINIO_BUCKET"),
+		MinioThumbnailsBucket:  thumbnailsBucket,
+		MinioUseSSL:            os.Getenv("MINIO_USE_SSL") == "true",
+		MinioPresignedUseSSL:   os.Getenv("MINIO_PRESIGNED_USE_SSL") == "true",
+		ServerPort:             os.Getenv("SERVER_PORT"),
 	}
 }
 

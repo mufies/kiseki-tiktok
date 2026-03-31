@@ -15,14 +15,14 @@ public class HealthController(AppDbContext db, IConnectionMultiplexer redis) : C
         bool pgOk    = false;
         bool redisOk = false;
 
-        try { pgOk = await db.Database.CanConnectAsync(ct); } catch { /* ignore */ }
+        try { pgOk = await db.Database.CanConnectAsync(ct); } catch { }
 
         try
         {
             await redis.GetDatabase().PingAsync();
             redisOk = true;
         }
-        catch { /* ignore */ }
+        catch { }
 
         var status = new
         {

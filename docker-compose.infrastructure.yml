@@ -1,0 +1,173 @@
+version: '3.8'
+
+# =====================================
+# Infrastructure Services
+# PostgreSQL, Redis, Kafka, Zookeeper, MinIO
+# =====================================
+
+services:
+  # =====================================
+  # PostgreSQL Database
+  # =====================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: tiktok-postgres
+    ports:
+      - "5433:5432"  # Map to 5433 on host to avoid conflict with system PostgreSQL
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      # Multiple databases will be created via init script
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # =====================================
+  # Redis Cache
+  # =====================================
+  redis:
+    image: redis:7-alpine
+    container_name: tiktok-redis
+    ports:
+      - "6380:6379"  # Map to 6380 on host to avoid conflict with system Redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # =====================================
+  # Zookeeper (for Kafka)
+  # =====================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: tiktok-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
+  # =====================================
+  # Kafka Message Broker
+  # =====================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: tiktok-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - tiktok-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # =====================================
+  # MinIO Object Storage
+  # =====================================
+  minio:
+    image: minio/minio:latest
+    container_name: tiktok-minio
+    ports:
+      - "9010:9000"  # API
+      - "9011:9001"  # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_SERVER_URL: http://localhost:9010
+    volumes:
+      - minio_data:/data
+    networks:
+      - tiktok-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # =====================================
+  # MinIO Client - Create buckets on startup
+  # =====================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: tiktok-minio-init
+    depends_on:
+      - minio
+    networks:
+      - tiktok-network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/videos --ignore-existing;
+      mc mb myminio/thumbnails --ignore-existing;
+      mc anonymous set download myminio/videos;
+      mc anonymous set download myminio/thumbnails;
+      echo 'MinIO buckets created successfully';
+      "
+    restart: "no"
+
+# =====================================
+# Networks
+# =====================================
+networks:
+  tiktok-network:
+    external: false
+    driver: bridge
+    name: tiktok-clone_tiktok-network
+
+# =====================================
+# Volumes
+# =====================================
+volumes:
+  postgres_data:
+    name: tiktok_postgres_data
+  redis_data:
+    name: tiktok_redis_data
+  zookeeper_data:
+    name: tiktok_zookeeper_data
+  zookeeper_logs:
+    name: tiktok_zookeeper_logs
+  kafka_data:
+    name: tiktok_kafka_data
+  minio_data:
+    name: tiktok_minio_data

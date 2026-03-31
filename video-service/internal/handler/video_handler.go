@@ -35,7 +35,7 @@ func (h *VideoHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	video, err := h.svc.Upload(ownerID, title, description, file, header, categories, hashtags)
+	video, err := h.svc.Upload(c.Request.Context(), ownerID, title, description, file, header, categories, hashtags)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
@@ -51,7 +51,15 @@ func (h *VideoHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	video, streamURL, expiresAt, err := h.svc.GetByID(id)
+	// Get current user ID from header (optional)
+	var currentUserID *uuid.UUID
+	if userIDStr := c.GetHeader("X-User-Id"); userIDStr != "" {
+		if uid, err := uuid.Parse(userIDStr); err == nil {
+			currentUserID = &uid
+		}
+	}
+
+	video, streamURL, expiresAt, err := h.svc.GetByID(c.Request.Context(), id, currentUserID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Video not found"})
 		return
@@ -71,7 +79,7 @@ func (h *VideoHandler) GetByOwner(c *gin.Context) {
 		return
 	}
 
-	videos, err := h.svc.GetByOwner(ownerID)
+	videos, err := h.svc.GetByOwner(c.Request.Context(), ownerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
@@ -80,8 +88,6 @@ func (h *VideoHandler) GetByOwner(c *gin.Context) {
 	c.JSON(http.StatusOK, videos)
 }
 
-// GetPresignedURL generates a fresh presigned URL for streaming
-// Client can call this endpoint when stream URL expires
 func (h *VideoHandler) GetPresignedURL(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -89,7 +95,7 @@ func (h *VideoHandler) GetPresignedURL(c *gin.Context) {
 		return
 	}
 
-	streamURL, expiresAt, err := h.svc.GetPresignedURL(id)
+	streamURL, expiresAt, err := h.svc.GetPresignedURL(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Video not found"})
 		return
@@ -101,7 +107,6 @@ func (h *VideoHandler) GetPresignedURL(c *gin.Context) {
 	})
 }
 
-// UpdateVideo updates video title and hashtags
 func (h *VideoHandler) UpdateVideo(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -126,7 +131,7 @@ func (h *VideoHandler) UpdateVideo(c *gin.Context) {
 		return
 	}
 
-	video, err := h.svc.UpdateVideo(id, ownerID, req.Title, req.Hashtags)
+	video, err := h.svc.UpdateVideo(c.Request.Context(), id, ownerID, req.Title, req.Hashtags)
 	if err != nil {
 		if err.Error() == "unauthorized: only owner can update video" {
 			c.JSON(http.StatusForbidden, gin.H{"message": err.Error()})
@@ -152,14 +157,14 @@ func (h *VideoHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.svc.Delete(id, userid) // Dùng = thay vì :=
+	err = h.svc.Delete(c.Request.Context(), id, userid)
 	if err != nil {
 		if err.Error() == "unauthorized: only owner can delete video" {
 			c.JSON(http.StatusForbidden, gin.H{"message": err.Error()})
 			return
 		} else {
 			c.JSON(http.StatusNotFound, gin.H{"message": "Video not found"})
-			return // Thêm return
+			return
 		}
 	}
 

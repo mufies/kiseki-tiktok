@@ -3,6 +3,7 @@ import { feedAPI } from '../api/feed';
 import { useAuth } from '../context/AuthContext';
 import type { Video } from '../types';
 import VideoCard from './VideoCard';
+import { interactionAPI } from '../api/interaction';
 
 type FeedType = 'personalized' | 'trending';
 
@@ -14,9 +15,16 @@ export default function VideoFeed() {
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const { user } = useAuth();
   const videoRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
-    loadFeed();
+    if (!user) return;
+
+    // Only load once on mount
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      loadFeed();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -82,7 +90,7 @@ export default function VideoFeed() {
   };
 
   const handleVideoView = (videoId: string) => {
-    console.log(`Video viewed: ${videoId}`);
+    interactionAPI.recordView(videoId).catch((err) => { console.error('Failed to record view:', err) });
   };
 
   if (!user) {

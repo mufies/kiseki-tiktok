@@ -1,0 +1,30 @@
+# Development Dockerfile for Java Spring Boot with DevTools (Hot Reload)
+FROM maven:3.9-eclipse-temurin-21
+
+# Set working directory
+WORKDIR /app
+
+# Copy proto files to parent directory structure
+# pom.xml expects proto at ../../proto relative to basedir
+COPY proto/ /proto/
+
+# Copy pom.xml first for dependency caching
+COPY interaction-service/interactionservice/pom.xml ./
+
+# Download dependencies (cached layer)
+RUN mvn dependency:go-offline -B
+
+# Copy source code
+COPY interaction-service/interactionservice/ ./
+
+# Generate protobuf classes before running
+# This creates generated sources in target/generated-sources/
+RUN mvn protobuf:compile protobuf:compile-custom
+
+# Expose ports (HTTP, gRPC, Debug)
+EXPOSE 8084 50054 5005
+
+# Run with Spring DevTools
+# spring-boot:run enables DevTools automatically
+# Generate proto on startup in case proto files changed
+CMD ["sh", "-c", "mvn protobuf:compile protobuf:compile-custom && mvn spring-boot:run -DskipTests -Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005' -Dspring.devtools.restart.enabled=true -Dspring.devtools.livereload.enabled=true"]

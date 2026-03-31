@@ -41,11 +41,12 @@ func checkHealth(w http.ResponseWriter, r *http.Request) {
 		name string
 		url  string
 	}{
-		{"User Service", "http://localhost:8081/health"},
-		{"Video Service", "http://localhost:8082/health"},
-		{"Interaction Service", "http://localhost:8084/actuator/health"},
-		{"Event Service", "http://localhost:5001/health"},
-		{"Feed Service", "http://localhost:8001/health"},
+		{"User Service", "http://user-service:8083/health"},
+		{"Video Service", "http://video-service:8081/videos/health"},
+		{"Interaction Service", "http://interaction-service:8084/actuator/health"},
+		{"Event Service", "http://event-service:5001/health"},
+		{"Feed Service", "http://feed-service:8001/health"},
+		{"Notification Service", "http://notification-service:8085/health"},
 	}
 
 	results := make([]ServiceHealth, len(services))
@@ -106,29 +107,37 @@ func main() {
 	mux.HandleFunc("/health", checkHealth)
 
 	// User Service proxy - Authentication endpoints (no auth required)
-	userServiceProxy := proxy.NewProxy("http://localhost:8081")
+	userServiceProxy := proxy.NewProxy("http://user-service:8083")
 	mux.Handle("/auth/", userServiceProxy)
 
 	// User Service proxy - Protected user endpoints
 	mux.Handle("/api/users/", middleware.AuthMiddleware(userServiceProxy))
 
 	// Video Service proxy
-	videoProxy := proxy.NewProxy("http://localhost:8082")
+	videoProxy := proxy.NewProxy("http://video-service:8081")
 	mux.Handle("/api/videos/", http.StripPrefix("/api", videoProxy))
 
 	// Interaction Service proxy
-	interactionProxy := proxy.NewProxy("http://localhost:8084")
+	interactionProxy := proxy.NewProxy("http://interaction-service:8084")
 	mux.Handle("/interactions/", interactionProxy)
 
 	// Event Service proxy
-	eventProxy := proxy.NewProxy("http://localhost:5001")
+	eventProxy := proxy.NewProxy("http://event-service:5001")
 	mux.Handle("/events/", eventProxy)
 	mux.Handle("/profile/", eventProxy)
 
 	// Feed Service proxy
-	feedProxy := proxy.NewProxy("http://localhost:8001")
+	feedProxy := proxy.NewProxy("http://feed-service:8001")
 	mux.Handle("/feed/", feedProxy)
 	mux.Handle("/trending", feedProxy)
+
+	// Notification Service proxy
+	notificationProxy := proxy.NewProxy("http://notification-service:8085")
+	mux.Handle("/notifications/", http.StripPrefix("", notificationProxy))
+
+	// MinIO proxy for serving video files with presigned URLs
+	minioProxy := proxy.NewProxy("http://minio:9000")
+	mux.Handle("/minio/", http.StripPrefix("/minio", minioProxy))
 
 	go middleware.CleanupClient()
 	log.Fatal(http.ListenAndServe(":8080",

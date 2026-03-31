@@ -33,6 +33,7 @@ message GetVideoByIdResponse {
 
 message GetVideoRequest {
   string video_id = 1;
+  optional string user_id = 2;
 }
 
 message GetVideoResponse {
@@ -42,6 +43,7 @@ message GetVideoResponse {
 message GetVideosRequest {
   int32 limit = 1;
   int32 offset = 2;
+  optional string user_id = 3;
 }
 
 message GetVideosResponse {
@@ -54,4 +56,25 @@ message Video {
   string title = 3;
   repeated string categories = 4;
   repeated string hashtags = 5;
+  VideoOwner owner = 6;
+  string description = 7;
+  string thumbnail_url = 8;
+  int64 created_at = 9;
+  bool is_liked = 10;
+  bool is_bookmarked = 11;
+  int64 like_count = 12;
+  int64 comment_count = 13;
+  int64 bookmark_count = 14;
+  int64 view_count = 15;
+}
+
+message VideoOwner {
+  string user_id = 1;
+  string username = 2;
+  string display_name = 3;
+  string profile_image_url = 4;
+  int64 followers_count = 5;
+  int64 following_count = 6;
+  bool is_verified = 7;
+  bool is_followed = 8;
 }

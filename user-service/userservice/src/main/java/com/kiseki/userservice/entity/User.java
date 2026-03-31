@@ -17,19 +17,21 @@ import java.time.LocalDateTime;
 
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private String id;
 
-    @Column(unique = true, nullable = false)
-    private String email;
+  @Column(unique = true, nullable = false)
+  private String email;
 
-    @Column(nullable = false)
-    private String password;
+  @Column(nullable = false)
+  private String password;
 
-    private String username;
-    private String avatarUrl;
+  private String username;
+  private String avatarUrl;
 
-    @CreationTimestamp
-    private LocalDateTime createdAt;
+  private String bio;
+
+  @CreationTimestamp
+  private LocalDateTime createdAt;
 }

@@ -25,11 +25,11 @@ spring:
 # gRPC configuration
 grpc:
   server:
-    port: 9092
+    port: 50054
   client:
     user-service:
-      address: 'static://localhost:9090'
+      address: 'static://localhost:50053'
       negotiationType: PLAINTEXT
     video-service:
-      address: 'static://localhost:9091'
+      address: 'static://localhost:50052'
       negotiationType: PLAINTEXT

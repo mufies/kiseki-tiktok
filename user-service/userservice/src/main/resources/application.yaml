@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/userdb
     username: postgres
-    password: 123
+    password: postgres
   jpa:
     hibernate:
       ddl-auto: update
@@ -32,9 +32,9 @@ jwt:
   refresh-token-expiry: 30      
 
 server:
-  port: 8081
+  port: 8083
 
 # gRPC server configuration
 grpc:
   server:
-    port: 9090
+    port: 50053

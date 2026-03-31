@@ -18,9 +18,6 @@ public class EventGrpcService(AppDbContext db, ILogger<EventGrpcService> logger)
     {
         int limit = request.Limit > 0 ? request.Limit : 20;
 
-        // Query: group by video_id, count watches, join video metadata
-        // (video metadata is fetched via gRPC client from Video Service within ProfileService,
-        //  but for trending we use denormalized info stored in watch_events)
         var trending = await db.WatchEvents
             .GroupBy(e => e.VideoId)
             .OrderByDescending(g => g.Count())
@@ -34,7 +31,7 @@ public class EventGrpcService(AppDbContext db, ILogger<EventGrpcService> logger)
             response.Videos.Add(new TrendingVideo
             {
                 VideoId    = item.VideoId,
-                Title      = string.Empty,   // title enrichment handled in Feed Service
+                Title      = string.Empty,
                 WatchCount = item.WatchCount
             });
         }
