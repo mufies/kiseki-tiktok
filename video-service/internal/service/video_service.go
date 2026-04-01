@@ -3,16 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kiseki/video-service/internal/authorization"
+	"github.com/kiseki/video-service/internal/grpc/interactionclient"
 	"github.com/kiseki/video-service/internal/grpc/userpb"
 	"github.com/kiseki/video-service/internal/model"
 	"github.com/kiseki/video-service/internal/repository"
@@ -30,8 +29,7 @@ type VideoService struct {
 	minioPresignedEndpoint string // Internal endpoint used for presigned client
 	minioPublicEndpoint    string // Public endpoint for browser access
 	userClient             userpb.UserServiceClient
-	interactionServiceURL  string
-	httpClient             *http.Client
+	interactionClient      *interactionclient.InteractionClient
 }
 
 func NewVideoService(
@@ -43,7 +41,7 @@ func NewVideoService(
 	minioPresignedEndpoint string,
 	minioPublicEndpoint string,
 	userClient userpb.UserServiceClient,
-	interactionServiceURL string,
+	interactionClient *interactionclient.InteractionClient,
 ) *VideoService {
 	return &VideoService{
 		repo:                   repo,
@@ -55,8 +53,7 @@ func NewVideoService(
 		minioPresignedEndpoint: minioPresignedEndpoint,
 		minioPublicEndpoint:    minioPublicEndpoint,
 		userClient:             userClient,
-		interactionServiceURL:  interactionServiceURL,
-		httpClient:             &http.Client{Timeout: 5 * time.Second},
+		interactionClient:      interactionClient,
 	}
 }
 
@@ -166,16 +163,16 @@ func (s *VideoService) GetByID(ctx context.Context, id uuid.UUID, currentUserID 
 		}
 	}
 
-	// Populate interactions
-	if currentUserID != nil && s.interactionServiceURL != "" {
-		interactions, err := s.fetchInteractions(ctx, id, currentUserID)
-		if err == nil {
+	// Populate interactions via gRPC
+	if s.interactionClient != nil {
+		interactions, err := s.fetchInteractionsGRPC(ctx, id, currentUserID)
+		if err == nil && interactions != nil {
 			video.Interactions = interactions
-		} else {
-			fmt.Printf("Warning: Failed to fetch interactions: %v\n", err)
+		} else if err != nil {
+			fmt.Printf("Warning: Failed to fetch interactions via gRPC: %v\n", err)
 		}
-	} else if currentUserID == nil {
-		fmt.Printf("Debug: currentUserID is nil, skipping interactions fetch\n")
+	} else {
+		fmt.Printf("Debug: interaction client not initialized\n")
 	}
 
 	return video, streamURL, expiresAt, nil
@@ -215,48 +212,22 @@ func (s *VideoService) fetchOwnerInfo(ctx context.Context, ownerID uuid.UUID, cu
 	return owner, nil
 }
 
-type InteractionResponse struct {
-	VideoID       string `json:"videoId"`
-	LikeCount     int64  `json:"likeCount"`
-	CommentCount  int64  `json:"commentCount"`
-	BookmarkCount int64  `json:"bookmarkCount"`
-	ViewCount     int64  `json:"viewCount"`
-	IsLiked       bool   `json:"isLiked"`
-	IsBookmarked  bool   `json:"isBookmarked"`
-}
-
-func (s *VideoService) fetchInteractions(ctx context.Context, videoID uuid.UUID, userID *uuid.UUID) (*model.VideoInteraction, error) {
-	reqURL := fmt.Sprintf("%s/interactions/videos/bulk?videoIds=%s", s.interactionServiceURL, videoID.String())
-
-	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
+// fetchInteractionsGRPC fetches interaction data for a video via gRPC
+func (s *VideoService) fetchInteractionsGRPC(ctx context.Context, videoID uuid.UUID, userID *uuid.UUID) (*model.VideoInteraction, error) {
 	if userID != nil {
-		req.Header.Set("X-User-Id", userID.String())
+		fmt.Printf("Debug: Fetching interactions via gRPC for video %s with user %s\n", videoID.String(), userID.String())
+	} else {
+		fmt.Printf("Debug: Fetching interactions via gRPC for video %s without user ID\n", videoID.String())
 	}
 
-	resp, err := s.httpClient.Do(req)
+	interaction, err := s.interactionClient.GetVideoInteraction(ctx, videoID, userID)
 	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("interaction service returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to fetch interactions via gRPC: %w", err)
 	}
 
-	var interactions []InteractionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&interactions); err != nil {
-		return nil, err
-	}
+	fmt.Printf("Debug: gRPC Interactions for video %s - LikeCount: %d, IsLiked: %v, IsBookmarked: %v\n",
+		videoID.String(), interaction.LikeCount, interaction.IsLiked, interaction.IsBookmarked)
 
-	if len(interactions) == 0 {
-		return &model.VideoInteraction{}, nil
-	}
-
-	interaction := interactions[0]
 	return &model.VideoInteraction{
 		LikeCount:     interaction.LikeCount,
 		CommentCount:  interaction.CommentCount,

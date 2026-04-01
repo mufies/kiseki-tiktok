@@ -108,6 +108,42 @@ public class InteractionService {
     return commandService.toggleBookmark(videoId, userId);
   }
 
+  /**
+   * Get interaction data for a single video.
+   * This method is optimized for single video queries.
+   *
+   * @param videoId The video ID to get interactions for
+   * @param userId Optional user ID to check if user has liked/bookmarked
+   * @return VideoInteractionResponse with all interaction counts and user-specific data
+   */
+  @Transactional(readOnly = true)
+  public VideoInteractionResponse getVideoInteraction(UUID videoId, UUID userId) {
+    // Get all interaction counts for this video
+    long likeCount = interactionRepository.countByVideoIdAndType(videoId, InteractionType.LIKE);
+    long commentCount = interactionRepository.countByVideoIdAndType(videoId, InteractionType.COMMENT);
+    long bookmarkCount = interactionRepository.countByVideoIdAndType(videoId, InteractionType.BOOKMARKED);
+    long viewCount = interactionRepository.countByVideoIdAndType(videoId, InteractionType.VIEW);
+
+    // Check if current user has liked/bookmarked this video
+    boolean isLiked = false;
+    boolean isBookmarked = false;
+
+    if (userId != null) {
+      isLiked = interactionRepository.existsByUserIdAndVideoIdAndType(userId, videoId, InteractionType.LIKE);
+      isBookmarked = interactionRepository.existsByUserIdAndVideoIdAndType(userId, videoId, InteractionType.BOOKMARKED);
+    }
+
+    return VideoInteractionResponse.builder()
+        .videoId(videoId)
+        .likeCount(likeCount)
+        .commentCount(commentCount)
+        .bookmarkCount(bookmarkCount)
+        .viewCount(viewCount)
+        .isLiked(isLiked)
+        .isBookmarked(isBookmarked)
+        .build();
+  }
+
   @Transactional(readOnly = true)
   public List<VideoInteractionResponse> getBulkInteractions(List<UUID> videoIds, UUID userId) {
     if (videoIds == null || videoIds.isEmpty()) {

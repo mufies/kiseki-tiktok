@@ -69,6 +69,14 @@ public class InteractionController {
     return ResponseEntity.ok(response);
   }
 
+  @GetMapping("/{videoId}/interactions")
+  public ResponseEntity<VideoInteractionResponse> getVideoInteraction(
+      @PathVariable UUID videoId,
+      @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+    VideoInteractionResponse response = interactionService.getVideoInteraction(videoId, userId);
+    return ResponseEntity.ok(response);
+  }
+
   @GetMapping("/bulk")
   public ResponseEntity<List<VideoInteractionResponse>> getBulkInteractions(
       @RequestParam List<UUID> videoIds,

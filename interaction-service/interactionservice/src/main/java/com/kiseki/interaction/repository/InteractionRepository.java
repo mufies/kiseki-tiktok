@@ -15,6 +15,8 @@ import java.util.UUID;
 public interface InteractionRepository extends JpaRepository<Interaction, Long> {
   Optional<Interaction> findByUserIdAndVideoIdAndType(UUID userId, UUID videoId, InteractionType type);
 
+  boolean existsByUserIdAndVideoIdAndType(UUID userId, UUID videoId, InteractionType type);
+
   long countByVideoIdAndType(UUID videoId, InteractionType type);
 
   List<Interaction> findByVideoIdAndTypeOrderByCreatedAtDesc(UUID videoId, InteractionType type);

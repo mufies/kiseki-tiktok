@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/kiseki/video-service/internal/grpc/interactionclient"
 	"github.com/kiseki/video-service/internal/grpc/userpb"
 	"github.com/kiseki/video-service/internal/grpc/videopb"
 	"github.com/kiseki/video-service/internal/repository"
@@ -16,9 +15,8 @@ import (
 // VideoGRPCServer implements videopb.VideoServiceServer
 type VideoGRPCServer struct {
 	videopb.UnimplementedVideoServiceServer
-	repo              *repository.VideoRepository
-	userClient        userpb.UserServiceClient
-	interactionClient interactionclient.InteractionServiceClient
+	repo       *repository.VideoRepository
+	userClient userpb.UserServiceClient
 }
 
 func NewVideoGRPCServer(repo *repository.VideoRepository, userClient userpb.UserServiceClient) *VideoGRPCServer {

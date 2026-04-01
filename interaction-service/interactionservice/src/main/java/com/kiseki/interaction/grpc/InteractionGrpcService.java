@@ -24,6 +24,66 @@ public class InteractionGrpcService extends InteractionServiceGrpc.InteractionSe
   private final InteractionService interactionService;
 
   @Override
+  public void getVideoInteraction(
+      GetVideoInteractionRequest request,
+      StreamObserver<VideoInteraction> responseObserver) {
+
+    try {
+      log.info("gRPC getVideoInteraction called for video ID: {}", request.getVideoId());
+
+      // Parse video ID
+      UUID videoId = UUID.fromString(request.getVideoId());
+
+      // Parse user ID (optional)
+      UUID userId = null;
+      if (request.hasUserId() && !request.getUserId().isEmpty()) {
+        userId = UUID.fromString(request.getUserId());
+        log.info("User ID provided: {}", userId);
+      } else {
+        log.info("No user ID provided, returning public interaction data only");
+      }
+
+      // Get interaction from service using the new dedicated method
+      VideoInteractionResponse interaction = interactionService.getVideoInteraction(videoId, userId);
+
+      // Build gRPC response
+      VideoInteraction grpcInteraction = VideoInteraction.newBuilder()
+          .setVideoId(interaction.getVideoId().toString())
+          .setLikeCount(interaction.getLikeCount())
+          .setCommentCount(interaction.getCommentCount())
+          .setBookmarkCount(interaction.getBookmarkCount())
+          .setViewCount(interaction.getViewCount())
+          .setIsLiked(interaction.isLiked())
+          .setIsBookmarked(interaction.isBookmarked())
+          .build();
+
+      responseObserver.onNext(grpcInteraction);
+      responseObserver.onCompleted();
+
+      log.info("Returned interaction for video: {} - likes: {}, comments: {}, isLiked: {}, isBookmarked: {}",
+          request.getVideoId(), interaction.getLikeCount(), interaction.getCommentCount(),
+          interaction.isLiked(), interaction.isBookmarked());
+
+    } catch (IllegalArgumentException e) {
+      log.error("Invalid UUID format: {}", e.getMessage());
+      responseObserver.onError(
+          io.grpc.Status.INVALID_ARGUMENT
+              .withDescription("Invalid video ID or user ID format")
+              .withCause(e)
+              .asRuntimeException()
+      );
+    } catch (Exception e) {
+      log.error("Error in getVideoInteraction: {}", e.getMessage(), e);
+      responseObserver.onError(
+          io.grpc.Status.INTERNAL
+              .withDescription("Internal server error while fetching video interaction")
+              .withCause(e)
+              .asRuntimeException()
+      );
+    }
+  }
+
+  @Override
   public void getBulkInteractions(
       GetBulkInteractionsRequest request,
       StreamObserver<GetBulkInteractionsResponse> responseObserver) {

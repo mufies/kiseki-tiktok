@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,12 @@ func (h *VideoHandler) GetByID(c *gin.Context) {
 	if userIDStr := c.GetHeader("X-User-Id"); userIDStr != "" {
 		if uid, err := uuid.Parse(userIDStr); err == nil {
 			currentUserID = &uid
+			fmt.Printf("Debug: GetByID called with user ID: %s\n", userIDStr)
+		} else {
+			fmt.Printf("Warning: Invalid X-User-Id header: %s\n", userIDStr)
 		}
+	} else {
+		fmt.Printf("Debug: GetByID called without X-User-Id header\n")
 	}
 
 	video, streamURL, expiresAt, err := h.svc.GetByID(c.Request.Context(), id, currentUserID)

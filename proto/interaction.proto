@@ -7,12 +7,23 @@ option java_multiple_files = true;
 option java_package = "com.kiseki.interaction.grpc";
 option java_outer_classname = "InteractionProto";
 
+// Go package option
+option go_package = "github.com/kiseki/video-service/internal/grpc/interactionpb";
+
 // Python package option
 option py_generic_services = true;
 
 service InteractionService {
+  // Get interaction for a single video
+  rpc GetVideoInteraction(GetVideoInteractionRequest) returns (VideoInteraction);
+
   // Get bulk interactions for multiple videos
   rpc GetBulkInteractions(GetBulkInteractionsRequest) returns (GetBulkInteractionsResponse);
+}
+
+message GetVideoInteractionRequest {
+  string video_id = 1;
+  optional string user_id = 2;
 }
 
 message GetBulkInteractionsRequest {

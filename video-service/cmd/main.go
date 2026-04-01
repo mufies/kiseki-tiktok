@@ -90,10 +90,16 @@ func main() {
 		log.Printf("Connected to user service at %s", userServiceAddr)
 	}
 
-	// Interaction service HTTP endpoint
+	// Connect to Interaction Service via gRPC
 	// Use service name for Docker, fallback to localhost for local development
-	interactionServiceURL := getEnv("INTERACTION_SERVICE_URL", "http://interaction-service:8084")
-	log.Printf("Using interaction service at %s", interactionServiceURL)
+	interactionServiceAddr := getEnv("INTERACTION_SERVICE_GRPC_ADDR", "interaction-service:50054")
+	log.Printf("Connecting to interaction service at %s", interactionServiceAddr)
+
+	interactionClient, err := interactionclient.NewInteractionClient(interactionServiceAddr)
+	if err != nil {
+		log.Fatalf("Failed to connect to interaction service: %v", err)
+	}
+	log.Printf("Successfully connected to interaction service at %s", interactionServiceAddr)
 
 	svc := service.NewVideoService(
 		repo,
@@ -104,7 +110,7 @@ func main() {
 		cfg.MinioPresignedEndpoint,
 		cfg.MinioPublicEndpoint,
 		userClient,
-		interactionServiceURL,
+		interactionClient,
 	)
 	h := handler.NewVideoHandler(svc)
 
