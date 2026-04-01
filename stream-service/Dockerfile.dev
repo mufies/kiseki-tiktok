@@ -1,0 +1,28 @@
+FROM golang:alpine
+
+# Install git and other build dependencies
+RUN apk add --no-cache git
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Tidy dependencies
+RUN go mod tidy
+
+# Build the application
+RUN go build -o /usr/local/bin/stream-service cmd/main.go
+
+# Expose ports
+EXPOSE 8083 50055 1935
+
+# Run the service
+CMD ["stream-service"]

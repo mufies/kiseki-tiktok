@@ -15,6 +15,7 @@ databases=(
     "eventdb"
     "feeddb"
     "notificationdb"
+    "streamdb"
 )
 
 # Create each database if it doesn't exist

@@ -182,6 +182,54 @@ services:
       - tiktok-network
     restart: unless-stopped
 
+  stream-service:
+    build:
+      context: ./stream-service
+      dockerfile: Dockerfile.dev
+    container_name: tiktok-stream-service
+    ports:
+      - "8083:8083"  # HTTP
+      - "50055:50055"  # gRPC
+      - "1935:1935"  # RTMP
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: streamdb
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: localhost:9010
+      MINIO_PRESIGNED_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_STREAMS_BUCKET: streams
+      MINIO_THUMBNAILS_BUCKET: streams-thumbnails
+      MINIO_USE_SSL: "false"
+      MINIO_PRESIGNED_USE_SSL: "false"
+      # Redis
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      # Kafka
+      KAFKA_BROKERS: kafka:9092
+      # Server ports
+      SERVER_PORT: "8083"
+      GRPC_PORT: "50055"
+      RTMP_PORT: "1935"
+      # External services
+      USER_SERVICE_GRPC_ADDR: user-service:50053
+      VIDEO_SERVICE_GRPC_ADDR: video-service:50052
+      NOTIFICATION_SERVICE_GRPC_ADDR: notification-service:9093
+    volumes:
+      - ./stream-service:/app
+      - ./proto:/app/proto
+      - go_stream_cache:/go/pkg/mod
+    networks:
+      - tiktok-network
+    restart: unless-stopped
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -194,6 +242,7 @@ services:
       - event-service
       - feed-service
       - notification-service
+      - stream-service
     ports:
       - "8080:8080"  # HTTP
       - "50051:50051"  # gRPC
@@ -204,6 +253,7 @@ services:
       EVENT_SERVICE_URL: "http://event-service:5001"
       FEED_SERVICE_URL: "http://feed-service:8001"
       NOTIFICATION_SERVICE_URL: "http://notification-service:8085"
+      STREAM_SERVICE_URL: "http://stream-service:8083"
     volumes:
       - ./api-gateway:/app
       - go_gateway_cache:/go/pkg/mod
@@ -251,3 +301,4 @@ volumes:
   python_feed_cache:
   go_video_cache:
   go_gateway_cache:
+  go_stream_cache:
