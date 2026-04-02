@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Radio } from 'lucide-react';
 import VideoFeed from '../components/VideoFeed';
 
 export default function Home() {
@@ -21,6 +22,13 @@ export default function Home() {
           <h2 className="text-xl font-bold text-white drop-shadow-md">For You</h2>
           {user && (
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/go-live')}
+                className="px-4 py-2 bg-red-600 text-white font-semibold text-sm rounded-lg flex items-center gap-2 drop-shadow-lg hover:bg-red-700 transition"
+              >
+                <Radio className="w-4 h-4" />
+                Go Live
+              </button>
               <button
                 onClick={() => navigate('/upload')}
                 className="text-white font-semibold text-sm flex items-center gap-1 drop-shadow-md hover:text-gray-300 transition"

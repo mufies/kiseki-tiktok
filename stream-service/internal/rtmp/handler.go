@@ -17,6 +17,7 @@ import (
 
 // StreamHandler handles RTMP stream events and integrates with StreamService
 type StreamHandler struct {
+	rtmp.DefaultHandler
 	streamService *service.StreamService
 	ctx           context.Context
 
@@ -47,12 +48,22 @@ func NewStreamHandler(streamService *service.StreamService) *StreamHandler {
 
 // OnServe is called when a new connection is established
 func (h *StreamHandler) OnServe(conn *rtmp.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[RTMP] PANIC in OnServe: %v", r)
+		}
+	}()
 	log.Printf("[RTMP] New connection established")
 }
 
 // OnConnect is called when client sends connect command
 func (h *StreamHandler) OnConnect(timestamp uint32, cmd *message.NetConnectionConnect) error {
-	log.Printf("[RTMP] OnConnect - App: %s, FlashVer: %s", cmd.Command.App, cmd.Command.FlashVer)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[RTMP] PANIC in OnConnect: %v", r)
+		}
+	}()
+	log.Printf("[RTMP] ✅ OnConnect SUCCESS - App: %s, FlashVer: %s", cmd.Command.App, cmd.Command.FlashVer)
 	return nil
 }
 

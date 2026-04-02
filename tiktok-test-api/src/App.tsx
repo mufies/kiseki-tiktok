@@ -5,6 +5,8 @@ import Home from './pages/Home';
 import Profile from './pages/Profile';
 import UserProfile from './pages/UserProfile';
 import Upload from './pages/Upload';
+import GoLive from './pages/GoLive';
+import WatchStream from './pages/WatchStream';
 import type { ReactNode } from 'react';
 
 interface PrivateRouteProps {
@@ -65,6 +67,22 @@ function App() {
             element={
               <PrivateRoute>
                 <Upload />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/go-live"
+            element={
+              <PrivateRoute>
+                <GoLive />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/stream/:username"
+            element={
+              <PrivateRoute>
+                <WatchStream />
               </PrivateRoute>
             }
           />

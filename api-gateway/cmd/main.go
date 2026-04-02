@@ -47,6 +47,7 @@ func checkHealth(w http.ResponseWriter, r *http.Request) {
 		{"Event Service", "http://event-service:5001/health"},
 		{"Feed Service", "http://feed-service:8001/health"},
 		{"Notification Service", "http://notification-service:8085/health"},
+		{"Stream Service", "http://stream-service:8083/health"},
 	}
 
 	results := make([]ServiceHealth, len(services))
@@ -134,6 +135,11 @@ func main() {
 	// Notification Service proxy
 	notificationProxy := proxy.NewProxy("http://notification-service:8085")
 	mux.Handle("/notifications/", http.StripPrefix("", notificationProxy))
+
+	// Stream Service proxy
+	streamProxy := proxy.NewProxy("http://stream-service:8083")
+	mux.Handle("/streams", streamProxy)  // Match exact /streams
+	mux.Handle("/streams/", streamProxy) // Match /streams/* paths
 
 	// MinIO proxy for serving video files with presigned URLs
 	minioProxy := proxy.NewProxy("http://minio:9000")

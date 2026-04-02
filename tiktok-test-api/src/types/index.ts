@@ -85,3 +85,28 @@ export interface WatchEvent {
   liked: boolean;
   timestamp: string;
 }
+
+export interface Stream {
+  id: string;
+  user_id: string;
+  stream_key: string;
+  title: string;
+  description: string;
+  thumbnail_url: string;
+  status: 'offline' | 'live' | 'ending';
+  viewer_count: number;
+  started_at?: string;
+  ended_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  streamId: string;
+  userId: string;
+  username: string;
+  content: string;
+  timestamp: string;
+  isStreamer?: boolean;
+}

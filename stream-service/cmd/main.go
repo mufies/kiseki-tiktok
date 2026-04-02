@@ -131,7 +131,7 @@ func main() {
 	// Start gRPC server in background
 	go startGRPCServer(cfg, repo)
 
-	// Start RTMP server in background (for live streaming ingest)
+	// Initialize and start RTMP server for stream ingestion
 	rtmpHandler := rtmp.NewStreamHandler(streamService)
 	rtmpServer := rtmp.NewServer(":"+cfg.RTMPPort, rtmpHandler)
 	go func() {
@@ -140,6 +140,8 @@ func main() {
 			log.Printf("RTMP server error: %v", err)
 		}
 	}()
+	log.Println("RTMP server started")
+
 
 	// Setup HTTP server with Gin
 	r := gin.Default()
@@ -158,17 +160,17 @@ func main() {
 	v1 := r.Group("/streams")
 	{
 		// Stream management
-		v1.POST("", streamHandler.CreateStream)              // Create new stream
-		v1.GET("/:id", streamHandler.GetStream)              // Get stream details
-		v1.PATCH("/:id", streamHandler.UpdateStream)         // Update stream info
-		v1.DELETE("/:id", streamHandler.DeleteStream)        // Delete stream
+		v1.POST("", streamHandler.CreateStream)       // Create new stream
+		v1.GET("/:id", streamHandler.GetStream)       // Get stream details
+		v1.PATCH("/:id", streamHandler.UpdateStream)  // Update stream info
+		v1.DELETE("/:id", streamHandler.DeleteStream) // Delete stream
 
 		// Stream lifecycle
-		v1.POST("/:id/start", streamHandler.StartStream)     // Start streaming
-		v1.POST("/:id/end", streamHandler.EndStream)         // End streaming
+		v1.POST("/:id/start", streamHandler.StartStream) // Start streaming
+		v1.POST("/:id/end", streamHandler.EndStream)     // End streaming
 
 		// Stream discovery
-		v1.GET("/live", streamHandler.GetLiveStreams)        // List all live streams
+		v1.GET("/live", streamHandler.GetLiveStreams)         // List all live streams
 		v1.GET("/user/:userId", streamHandler.GetUserStreams) // Get user's streams
 
 		// Stream playback

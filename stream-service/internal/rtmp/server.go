@@ -43,18 +43,34 @@ func (s *Server) Start() error {
 	// Create RTMP server with configuration
 	s.server = rtmp.NewServer(&rtmp.ServerConfig{
 		OnConnect: func(conn net.Conn) (io.ReadWriteCloser, *rtmp.ConnConfig) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[RTMP] PANIC in OnConnect callback: %v", r)
+				}
+			}()
+
 			log.Printf("[RTMP] Incoming connection from %s", conn.RemoteAddr())
+			log.Printf("[RTMP] Step 1: Creating handler reference")
 
-			// Return connection config with our handler
-			return conn, &rtmp.ConnConfig{
-				Handler: s.handler,
+			handler := s.handler
+			if handler == nil {
+				log.Printf("[RTMP] ERROR: Handler is nil!")
+				return conn, nil
+			}
+			log.Printf("[RTMP] Step 2: Handler OK")
 
-				// Control state configuration
+			// Return connection config with shared handler
+			config := &rtmp.ConnConfig{
+				Handler: handler,
+
+				// Control state configuration (same as example)
 				ControlState: rtmp.StreamControlStateConfig{
-					DefaultBandwidthWindowSize: 6 * 1024 * 1024, // 6 Mbps
-					DefaultChunkSize:           4096,             // 4KB chunks
+					DefaultBandwidthWindowSize: 6 * 1024 * 1024 / 8,
 				},
 			}
+
+			log.Printf("[RTMP] Step 3: Config created, returning")
+			return conn, config
 		},
 	})
 

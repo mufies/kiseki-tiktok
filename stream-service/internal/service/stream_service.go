@@ -17,19 +17,19 @@ import (
 
 const (
 	// Redis keys
-	redisKeyActiveViewers     = "stream:%s:active_viewers"
-	redisKeyViewerCount       = "stream:%s:viewer_count"
-	redisKeyPeakViewers       = "stream:%s:peak_viewers"
-	redisKeyTotalViewers      = "stream:%s:total_viewers"
-	redisKeyStreamStatus      = "stream:%s:status"
+	redisKeyActiveViewers = "stream:%s:active_viewers"
+	redisKeyViewerCount   = "stream:%s:viewer_count"
+	redisKeyPeakViewers   = "stream:%s:peak_viewers"
+	redisKeyTotalViewers  = "stream:%s:total_viewers"
+	redisKeyStreamStatus  = "stream:%s:status"
 )
 
 type StreamService struct {
-	repo          repository.StreamRepository
-	storage       storage.StorageClient
-	redis         *redis.Client
-	kafka         *kafka.KafkaProducer
-	config        *config.Config
+	repo    repository.StreamRepository
+	storage storage.StorageClient
+	redis   *redis.Client
+	kafka   *kafka.KafkaProducer
+	config  *config.Config
 }
 
 func NewStreamService(
@@ -427,22 +427,9 @@ func (s *StreamService) GetPlaybackURL(ctx context.Context, id uuid.UUID) (strin
 		return "", fmt.Errorf("stream is not live")
 	}
 
-	// Generate HLS playlist URL
-	// Format: http://minio-endpoint/streams-bucket/stream-id/playlist.m3u8
-	scheme := "http"
-	if s.config.MinioPresignedUseSSL {
-		scheme = "https"
-	}
-
-	hlsPath := fmt.Sprintf("%s/%s/playlist.m3u8", s.config.MinioStreamsBucket, id.String())
-	playbackURL := fmt.Sprintf("%s://%s/%s", scheme, s.config.MinioPublicEndpoint, hlsPath)
-
-	// Alternative: Generate presigned URL
-	// presignedURL, err := s.storage.PresignedGetObject(ctx, s.config.MinioStreamsBucket, hlsPath, 1*time.Hour)
-	// if err != nil {
-	//     return "", fmt.Errorf("failed to generate playback URL: %w", err)
-	// }
-	// return presignedURL.String(), nil
+	// TODO: Implement HLS transcoding in the built-in RTMP server
+	// For now, return the RTMP URL that can be used with a player that supports RTMP
+	playbackURL := fmt.Sprintf("rtmp://localhost:%s/live/%s", s.config.RTMPPort, stream.StreamKey)
 
 	return playbackURL, nil
 }

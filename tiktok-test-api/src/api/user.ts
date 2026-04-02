@@ -26,6 +26,12 @@ export const userAPI = {
     return response.data;
   },
 
+  // Get user profile by username
+  getUserByUsername: async (username: string): Promise<UserProfile> => {
+    const response = await axiosInstance.get<UserProfile>(`api/users/username/${username}`);
+    return response.data;
+  },
+
   // Update user profile
   updateProfile: async (data: UpdateProfileRequest): Promise<UserProfile> => {
     const response = await axiosInstance.put<UserProfile>('api/users/me', data);

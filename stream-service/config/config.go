@@ -51,28 +51,28 @@ type Config struct {
 	GRPCPort   string
 
 	// External Service Addresses
-	UserServiceGRPCAddr        string
-	VideoServiceGRPCAddr       string
+	UserServiceGRPCAddr         string
+	VideoServiceGRPCAddr        string
 	NotificationServiceGRPCAddr string
 
 	// Transcoding Configuration
-	EnableTranscoding bool
-	FFmpegPath        string
+	EnableTranscoding  bool
+	FFmpegPath         string
 	TranscodingPresets []TranscodingPreset
 }
 
 type KafkaTopics struct {
-	StreamStarted    string
-	StreamEnded      string
-	ViewerJoined     string
-	ViewerLeft       string
-	StreamUpdate     string
-	VODReady         string
+	StreamStarted string
+	StreamEnded   string
+	ViewerJoined  string
+	ViewerLeft    string
+	StreamUpdate  string
+	VODReady      string
 }
 
 type TranscodingPreset struct {
-	Name       string
-	Resolution string // e.g., "1920x1080", "1280x720"
+	Name         string
+	Resolution   string // e.g., "1920x1080", "1280x720"
 	VideoBitrate string // e.g., "5000k", "2500k"
 	AudioBitrate string // e.g., "128k", "96k"
 }
@@ -166,8 +166,8 @@ func Load() *Config {
 		GRPCPort:   getEnv("GRPC_PORT", "50055"),
 
 		// External Services
-		UserServiceGRPCAddr:        getEnv("USER_SERVICE_GRPC_ADDR", "localhost:50053"),
-		VideoServiceGRPCAddr:       getEnv("VIDEO_SERVICE_GRPC_ADDR", "localhost:50052"),
+		UserServiceGRPCAddr:         getEnv("USER_SERVICE_GRPC_ADDR", "localhost:50053"),
+		VideoServiceGRPCAddr:        getEnv("VIDEO_SERVICE_GRPC_ADDR", "localhost:50052"),
 		NotificationServiceGRPCAddr: getEnv("NOTIFICATION_SERVICE_GRPC_ADDR", "localhost:50051"),
 
 		// Transcoding
