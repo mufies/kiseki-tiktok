@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLS Stream Player - Test</title>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #444;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .video-container {
+            margin-top: 30px;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .video-js {
+            width: 100%;
+            height: 600px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .stats.active {
+            display: block;
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #667eea;
+            display: inline-block;
+            width: 150px;
+        }
+
+        .stat-value {
+            color: #333;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+
+        .alert-success {
+            background: #e8f5e9;
+            color: #388e3c;
+            border-left: 4px solid #388e3c;
+        }
+
+        .alert-error {
+            background: #ffebee;
+            color: #d32f2f;
+            border-left: 4px solid #d32f2f;
+        }
+
+        .quick-test {
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+            margin-bottom: 20px;
+        }
+
+        .quick-test h3 {
+            margin-top: 0;
+            color: #e65100;
+        }
+
+        .quick-test ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .quick-test li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 HLS Stream Player (ABR Support)</h1>
+        <p class="subtitle">Test your RTMP to HLS transcoding with Adaptive Bitrate Streaming</p>
+
+        <div class="quick-test">
+            <h3>Quick Test Guide</h3>
+            <ol>
+                <li>Make sure stream service is running on port 8083</li>
+                <li>Start streaming from OBS to: <code>rtmp://localhost:1935/live/{stream_key}</code></li>
+                <li>Enter your stream ID below (from database)</li>
+                <li>Click "Load Stream"</li>
+                <li>Wait 6-12 seconds for first HLS segments to be generated</li>
+            </ol>
+        </div>
+
+        <div class="input-group">
+            <label for="streamId">Stream ID (UUID):</label>
+            <input
+                type="text"
+                id="streamId"
+                placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000"
+                value="">
+        </div>
+
+        <div class="input-group">
+            <label for="serverUrl">Server URL:</label>
+            <input
+                type="text"
+                id="serverUrl"
+                placeholder="http://localhost:8083"
+                value="http://localhost:8083">
+        </div>
+
+        <div>
+            <button onclick="loadStream()">▶️ Load Stream</button>
+            <button onclick="stopStream()">⏹️ Stop</button>
+            <button onclick="toggleStats()">📊 Toggle Stats</button>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div class="video-container">
+            <video id="video-player" class="video-js vjs-default-skin" controls preload="auto">
+                <p class="vjs-no-js">
+                    To view this video please enable JavaScript
+                </p>
+            </video>
+        </div>
+
+        <div class="stats" id="stats">
+            <h3>📊 Playback Statistics</h3>
+            <div class="stat-item">
+                <span class="stat-label">HLS URL:</span>
+                <span class="stat-value" id="stat-url">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Stream State:</span>
+                <span class="stat-value" id="stat-state">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Current Time:</span>
+                <span class="stat-value" id="stat-time">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Buffered:</span>
+                <span class="stat-value" id="stat-buffer">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Network State:</span>
+                <span class="stat-value" id="stat-network">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Video Size:</span>
+                <span class="stat-value" id="stat-size">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Current Quality:</span>
+                <span class="stat-value" id="stat-quality">-</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Available Qualities:</span>
+                <span class="stat-value" id="stat-qualities">-</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script>
+        let player;
+        let statsInterval;
+
+        // Initialize video player
+        function initPlayer() {
+            if (player) {
+                player.dispose();
+            }
+
+            player = videojs('video-player', {
+                controls: true,
+                autoplay: false,
+                preload: 'auto',
+                liveui: true,
+                html5: {
+                    vhs: {
+                        overrideNative: true,
+                        enableLowInitialPlaylist: true,
+                        smoothQualityChange: true,
+                        useBandwidthFromLocalStorage: true
+                    }
+                }
+            });
+        }
+
+        initPlayer();
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function loadStream() {
+            const streamId = document.getElementById('streamId').value.trim();
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+
+            if (!streamId) {
+                showAlert('Please enter a Stream ID', 'error');
+                return;
+            }
+
+            // Use master.m3u8 for ABR support
+            const hlsUrl = `${serverUrl}/hls/${streamId}/master.m3u8`;
+
+            showAlert(`Loading stream: ${streamId}`, 'info');
+
+            // Update stat
+            document.getElementById('stat-url').textContent = hlsUrl;
+
+            // Load source
+            player.src({
+                src: hlsUrl,
+                type: 'application/x-mpegURL'
+            });
+
+            player.ready(function() {
+                // Add event listeners
+                player.on('loadedmetadata', function() {
+                    showAlert('Stream metadata loaded!', 'success');
+                    updateStats();
+                });
+
+                player.on('error', function(e) {
+                    const error = player.error();
+                    showAlert(`Error: ${error.message}`, 'error');
+                    console.error('Player error:', error);
+                });
+
+                player.on('playing', function() {
+                    showAlert('Stream is playing!', 'success');
+                    startStatsUpdate();
+                });
+
+                player.on('waiting', function() {
+                    showAlert('Buffering...', 'info');
+                });
+
+                player.on('pause', function() {
+                    stopStatsUpdate();
+                });
+
+                // Auto play
+                player.play().catch(function(error) {
+                    showAlert('Auto-play blocked. Click play button.', 'info');
+                    console.log('Auto-play prevented:', error);
+                });
+            });
+        }
+
+        function stopStream() {
+            if (player) {
+                player.pause();
+                player.src('');
+                showAlert('Stream stopped', 'info');
+                stopStatsUpdate();
+            }
+        }
+
+        function toggleStats() {
+            const stats = document.getElementById('stats');
+            stats.classList.toggle('active');
+        }
+
+        function updateStats() {
+            if (!player) return;
+
+            // State
+            const states = ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'];
+            document.getElementById('stat-state').textContent = states[player.readyState()] || 'Unknown';
+
+            // Current time
+            document.getElementById('stat-time').textContent =
+                `${player.currentTime().toFixed(2)}s / ${player.duration().toFixed(2)}s`;
+
+            // Buffered
+            const buffered = player.buffered();
+            if (buffered.length > 0) {
+                const bufferedEnd = buffered.end(buffered.length - 1);
+                const bufferedSeconds = bufferedEnd - player.currentTime();
+                document.getElementById('stat-buffer').textContent =
+                    `${bufferedSeconds.toFixed(2)}s ahead`;
+            } else {
+                document.getElementById('stat-buffer').textContent = '0s';
+            }
+
+            // Network state
+            const networkStates = ['NETWORK_EMPTY', 'NETWORK_IDLE', 'NETWORK_LOADING', 'NETWORK_NO_SOURCE'];
+            document.getElementById('stat-network').textContent =
+                networkStates[player.networkState()] || 'Unknown';
+
+            // Video size
+            document.getElementById('stat-size').textContent =
+                `${player.videoWidth()}x${player.videoHeight()}`;
+
+            // ABR quality information
+            try {
+                const qualityLevels = player.qualityLevels();
+                if (qualityLevels && qualityLevels.length > 0) {
+                    // Get current quality
+                    const currentLevel = qualityLevels.selectedIndex;
+                    if (currentLevel >= 0 && currentLevel < qualityLevels.length) {
+                        const level = qualityLevels[currentLevel];
+                        document.getElementById('stat-quality').textContent =
+                            `${level.width}x${level.height} @ ${(level.bitrate / 1000).toFixed(0)} kbps`;
+                    }
+
+                    // List all available qualities
+                    const qualities = [];
+                    for (let i = 0; i < qualityLevels.length; i++) {
+                        const level = qualityLevels[i];
+                        qualities.push(`${level.height}p (${(level.bitrate / 1000).toFixed(0)} kbps)`);
+                    }
+                    document.getElementById('stat-qualities').textContent = qualities.join(', ');
+                } else {
+                    document.getElementById('stat-quality').textContent = 'Single quality';
+                    document.getElementById('stat-qualities').textContent = 'No ABR';
+                }
+            } catch (e) {
+                document.getElementById('stat-quality').textContent = 'Not available';
+                document.getElementById('stat-qualities').textContent = 'Not available';
+            }
+        }
+
+        function startStatsUpdate() {
+            stopStatsUpdate();
+            statsInterval = setInterval(updateStats, 1000);
+        }
+
+        function stopStatsUpdate() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+        }
+
+        // Auto-load if stream ID is in URL
+        window.addEventListener('DOMContentLoaded', function() {
+            const params = new URLSearchParams(window.location.search);
+            const streamId = params.get('streamId');
+            if (streamId) {
+                document.getElementById('streamId').value = streamId;
+                setTimeout(loadStream, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

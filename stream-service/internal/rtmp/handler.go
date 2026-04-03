@@ -13,17 +13,34 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kiseki/stream-service/internal/service"
+	"github.com/kiseki/stream-service/internal/transcoder"
 )
 
 // StreamHandler handles RTMP stream events and integrates with StreamService
+// This is a shared handler that manages all active streams
 type StreamHandler struct {
-	rtmp.DefaultHandler
-	streamService *service.StreamService
-	ctx           context.Context
+	streamService     *service.StreamService
+	transcoderManager *transcoder.Manager
+	ctx               context.Context
 
-	// Track active streams
+	// Track active streams globally
 	mu            sync.RWMutex
 	activeStreams map[string]*ActiveStream // key: stream_key, value: stream info
+}
+
+// ConnectionHandler handles events for a single RTMP connection
+// Each connection gets its own instance to properly track per-stream statistics
+type ConnectionHandler struct {
+	rtmp.DefaultHandler
+	sharedHandler *StreamHandler
+
+	// Track this connection's stream
+	mu           sync.RWMutex
+	streamKey    string
+	streamID     uuid.UUID
+	flvWriter    *transcoder.FLVWriter
+	lastVideoTs  uint32
+	lastAudioTs  uint32
 }
 
 // ActiveStream holds information about an active RTMP stream
@@ -38,16 +55,24 @@ type ActiveStream struct {
 	LastPacketAt  time.Time
 }
 
-func NewStreamHandler(streamService *service.StreamService) *StreamHandler {
+func NewStreamHandler(streamService *service.StreamService, transcoderMgr *transcoder.Manager) *StreamHandler {
 	return &StreamHandler{
-		streamService: streamService,
-		ctx:           context.Background(),
-		activeStreams: make(map[string]*ActiveStream),
+		streamService:     streamService,
+		transcoderManager: transcoderMgr,
+		ctx:               context.Background(),
+		activeStreams:     make(map[string]*ActiveStream),
+	}
+}
+
+// NewConnectionHandler creates a new handler for a single connection
+func (h *StreamHandler) NewConnectionHandler() *ConnectionHandler {
+	return &ConnectionHandler{
+		sharedHandler: h,
 	}
 }
 
 // OnServe is called when a new connection is established
-func (h *StreamHandler) OnServe(conn *rtmp.Conn) {
+func (h *ConnectionHandler) OnServe(conn *rtmp.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[RTMP] PANIC in OnServe: %v", r)
@@ -57,7 +82,7 @@ func (h *StreamHandler) OnServe(conn *rtmp.Conn) {
 }
 
 // OnConnect is called when client sends connect command
-func (h *StreamHandler) OnConnect(timestamp uint32, cmd *message.NetConnectionConnect) error {
+func (h *ConnectionHandler) OnConnect(timestamp uint32, cmd *message.NetConnectionConnect) error {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[RTMP] PANIC in OnConnect: %v", r)
@@ -68,30 +93,32 @@ func (h *StreamHandler) OnConnect(timestamp uint32, cmd *message.NetConnectionCo
 }
 
 // OnCreateStream is called when client creates a stream
-func (h *StreamHandler) OnCreateStream(timestamp uint32, cmd *message.NetConnectionCreateStream) error {
+func (h *ConnectionHandler) OnCreateStream(timestamp uint32, cmd *message.NetConnectionCreateStream) error {
 	log.Printf("[RTMP] OnCreateStream")
 	return nil
 }
 
 // OnReleaseStream is called to release a stream (Flash compatibility)
-func (h *StreamHandler) OnReleaseStream(timestamp uint32, cmd *message.NetConnectionReleaseStream) error {
+func (h *ConnectionHandler) OnReleaseStream(timestamp uint32, cmd *message.NetConnectionReleaseStream) error {
 	log.Printf("[RTMP] OnReleaseStream: %s", cmd.StreamName)
 	return nil
 }
 
 // OnDeleteStream is called when stream is being deleted
-func (h *StreamHandler) OnDeleteStream(timestamp uint32, cmd *message.NetStreamDeleteStream) error {
+func (h *ConnectionHandler) OnDeleteStream(timestamp uint32, cmd *message.NetStreamDeleteStream) error {
 	log.Printf("[RTMP] OnDeleteStream: stream ID %d", cmd.StreamID)
 	return nil
 }
 
 // OnPublish is called when client starts publishing a stream
-func (h *StreamHandler) OnPublish(streamCtx *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPublish) error {
+func (h *ConnectionHandler) OnPublish(streamCtx *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPublish) error {
 	streamKey := cmd.PublishingName
 	log.Printf("[RTMP] 📡 OnPublish - Stream Key: %s, Type: %s", streamKey, cmd.PublishingType)
 
+	sh := h.sharedHandler
+
 	// Validate stream key with service
-	stream, err := h.streamService.GetStreamByKey(h.ctx, streamKey)
+	stream, err := sh.streamService.GetStreamByKey(sh.ctx, streamKey)
 	if err != nil {
 		log.Printf("[RTMP] ❌ Invalid stream key: %s - %v", streamKey, err)
 		return fmt.Errorf("invalid stream key: %w", err)
@@ -107,20 +134,40 @@ func (h *StreamHandler) OnPublish(streamCtx *rtmp.StreamContext, timestamp uint3
 	}
 
 	// Start the stream in the service
-	if err := h.streamService.StartStream(h.ctx, stream.ID); err != nil {
+	if err := sh.streamService.StartStream(sh.ctx, stream.ID); err != nil {
 		log.Printf("[RTMP] ❌ Failed to start stream: %v", err)
 		return fmt.Errorf("failed to start stream: %w", err)
 	}
 
-	// Track active stream
-	h.mu.Lock()
-	h.activeStreams[streamKey] = &ActiveStream{
+	// Track active stream in shared handler
+	sh.mu.Lock()
+	sh.activeStreams[streamKey] = &ActiveStream{
 		StreamID:     stream.ID,
 		StreamKey:    streamKey,
 		UserID:       stream.UserID,
 		StartTime:    time.Now(),
 		LastPacketAt: time.Now(),
 	}
+	sh.mu.Unlock()
+
+	// Start HLS transcoder
+	hlsTranscoder, err := sh.transcoderManager.StartTranscoder(stream.ID, streamKey)
+	if err != nil {
+		log.Printf("[RTMP] ⚠️  Failed to start transcoder: %v (stream will continue without HLS)", err)
+		// Don't fail the stream if transcoder fails - continue without HLS
+	} else {
+		// Create FLV writer to pipe data to FFmpeg stdin
+		h.mu.Lock()
+		h.flvWriter = hlsTranscoder.GetFLVWriter()
+		h.streamID = stream.ID
+		h.mu.Unlock()
+
+		log.Printf("[RTMP] 📹 HLS transcoder started - Playlist: %s", hlsTranscoder.GetPlaylistURL())
+	}
+
+	// Store stream key for this connection
+	h.mu.Lock()
+	h.streamKey = streamKey
 	h.mu.Unlock()
 
 	log.Printf("[RTMP] 🎬 Stream started successfully - ID: %s, Key: %s", stream.ID, streamKey)
@@ -128,16 +175,29 @@ func (h *StreamHandler) OnPublish(streamCtx *rtmp.StreamContext, timestamp uint3
 }
 
 // OnAudio is called when audio data is received
-func (h *StreamHandler) OnAudio(timestamp uint32, payload io.Reader) error {
+func (h *ConnectionHandler) OnAudio(timestamp uint32, payload io.Reader) error {
 	// Read audio data
 	data, err := io.ReadAll(payload)
 	if err != nil {
 		return err
 	}
 
-	// Update statistics for all active streams
-	h.mu.Lock()
-	for _, stream := range h.activeStreams {
+	// Get this connection's stream key and FLV writer
+	h.mu.RLock()
+	streamKey := h.streamKey
+	flvWriter := h.flvWriter
+	h.mu.RUnlock()
+
+	if streamKey == "" {
+		// No stream published yet, ignore
+		return nil
+	}
+
+	// Update statistics for THIS stream only
+	sh := h.sharedHandler
+	sh.mu.Lock()
+	stream, ok := sh.activeStreams[streamKey]
+	if ok {
 		stream.AudioPackets++
 		stream.TotalBytes += int64(len(data))
 		stream.LastPacketAt = time.Now()
@@ -155,25 +215,47 @@ func (h *StreamHandler) OnAudio(timestamp uint32, payload io.Reader) error {
 			)
 		}
 	}
-	h.mu.Unlock()
+	sh.mu.Unlock()
 
-	// TODO: Forward audio data to transcoder for HLS conversion
-	// Example: h.transcoder.WriteAudio(data, timestamp)
+	// Forward audio data to transcoder for HLS conversion
+	if flvWriter != nil {
+		h.mu.Lock()
+		h.lastAudioTs = timestamp
+		h.mu.Unlock()
+
+		if err := flvWriter.WriteAudioTag(timestamp, data); err != nil {
+			log.Printf("[RTMP] ⚠️  Failed to write audio to transcoder: %v", err)
+			// Don't return error - continue streaming even if transcoding fails
+		}
+	}
 
 	return nil
 }
 
 // OnVideo is called when video data is received
-func (h *StreamHandler) OnVideo(timestamp uint32, payload io.Reader) error {
+func (h *ConnectionHandler) OnVideo(timestamp uint32, payload io.Reader) error {
 	// Read video data
 	data, err := io.ReadAll(payload)
 	if err != nil {
 		return err
 	}
 
-	// Update statistics for all active streams
-	h.mu.Lock()
-	for _, stream := range h.activeStreams {
+	// Get this connection's stream key and FLV writer
+	h.mu.RLock()
+	streamKey := h.streamKey
+	flvWriter := h.flvWriter
+	h.mu.RUnlock()
+
+	if streamKey == "" {
+		// No stream published yet, ignore
+		return nil
+	}
+
+	// Update statistics for THIS stream only
+	sh := h.sharedHandler
+	sh.mu.Lock()
+	stream, ok := sh.activeStreams[streamKey]
+	if ok {
 		stream.VideoPackets++
 		stream.TotalBytes += int64(len(data))
 		stream.LastPacketAt = time.Now()
@@ -191,94 +273,128 @@ func (h *StreamHandler) OnVideo(timestamp uint32, payload io.Reader) error {
 			)
 		}
 	}
-	h.mu.Unlock()
+	sh.mu.Unlock()
 
-	// TODO: Forward video data to transcoder for HLS conversion
-	// Example: h.transcoder.WriteVideo(data, timestamp)
+	// Forward video data to transcoder for HLS conversion
+	if flvWriter != nil {
+		h.mu.Lock()
+		h.lastVideoTs = timestamp
+		h.mu.Unlock()
+
+		if err := flvWriter.WriteVideoTag(timestamp, data); err != nil {
+			log.Printf("[RTMP] ⚠️  Failed to write video to transcoder: %v", err)
+			// Don't return error - continue streaming even if transcoding fails
+		}
+	}
 
 	return nil
 }
 
 // OnPlay is called when client starts playing a stream (not used for publishing)
-func (h *StreamHandler) OnPlay(streamCtx *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPlay) error {
+func (h *ConnectionHandler) OnPlay(streamCtx *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPlay) error {
 	log.Printf("[RTMP] OnPlay: %s", cmd.StreamName)
 	// Not implemented - we only support publishing, not playback
 	return fmt.Errorf("playback not supported")
 }
 
 // OnFCPublish is called for Flash Media Server compatibility (before publish)
-func (h *StreamHandler) OnFCPublish(timestamp uint32, cmd *message.NetStreamFCPublish) error {
+func (h *ConnectionHandler) OnFCPublish(timestamp uint32, cmd *message.NetStreamFCPublish) error {
 	log.Printf("[RTMP] OnFCPublish")
 	return nil
 }
 
 // OnFCUnpublish is called for Flash Media Server compatibility (after unpublish)
-func (h *StreamHandler) OnFCUnpublish(timestamp uint32, cmd *message.NetStreamFCUnpublish) error {
+func (h *ConnectionHandler) OnFCUnpublish(timestamp uint32, cmd *message.NetStreamFCUnpublish) error {
 	log.Printf("[RTMP] OnFCUnpublish")
 	return nil
 }
 
 // OnSetDataFrame is called when metadata is received
-func (h *StreamHandler) OnSetDataFrame(timestamp uint32, data *message.NetStreamSetDataFrame) error {
+func (h *ConnectionHandler) OnSetDataFrame(timestamp uint32, data *message.NetStreamSetDataFrame) error {
 	log.Printf("[RTMP] OnSetDataFrame: %+v", data)
 	// TODO: Store stream metadata (resolution, bitrate, codec, etc.)
 	return nil
 }
 
 // OnUnknownMessage is called when an unknown message type is received
-func (h *StreamHandler) OnUnknownMessage(timestamp uint32, msg message.Message) error {
+func (h *ConnectionHandler) OnUnknownMessage(timestamp uint32, msg message.Message) error {
 	log.Printf("[RTMP] OnUnknownMessage: %+v", msg)
 	return nil
 }
 
 // OnUnknownCommandMessage is called when an unknown command message is received
-func (h *StreamHandler) OnUnknownCommandMessage(timestamp uint32, cmd *message.CommandMessage) error {
+func (h *ConnectionHandler) OnUnknownCommandMessage(timestamp uint32, cmd *message.CommandMessage) error {
 	log.Printf("[RTMP] OnUnknownCommandMessage: %s", cmd.CommandName)
 	return nil
 }
 
 // OnUnknownDataMessage is called when an unknown data message is received
-func (h *StreamHandler) OnUnknownDataMessage(timestamp uint32, data *message.DataMessage) error {
+func (h *ConnectionHandler) OnUnknownDataMessage(timestamp uint32, data *message.DataMessage) error {
 	log.Printf("[RTMP] OnUnknownDataMessage: %+v", data)
 	return nil
 }
 
 // OnClose is called when the stream connection is closed
-func (h *StreamHandler) OnClose() {
+func (h *ConnectionHandler) OnClose() {
 	log.Printf("[RTMP] 🔌 Connection closing")
 
-	// Find and end all active streams for this connection
-	h.mu.Lock()
-	streamsToEnd := make([]*ActiveStream, 0, len(h.activeStreams))
-	for _, stream := range h.activeStreams {
-		streamsToEnd = append(streamsToEnd, stream)
+	// Get this connection's stream key
+	h.mu.RLock()
+	streamKey := h.streamKey
+	h.mu.RUnlock()
+
+	if streamKey == "" {
+		// No stream was published on this connection
+		log.Printf("[RTMP] Connection closed without publishing a stream")
+		return
 	}
-	h.mu.Unlock()
 
-	// End each stream
-	for _, stream := range streamsToEnd {
-		duration := time.Since(stream.StartTime)
-		bitrate := float64(stream.TotalBytes*8) / duration.Seconds() / 1000000 // Mbps
+	sh := h.sharedHandler
 
-		log.Printf("[RTMP] 🛑 Ending stream - ID: %s, Key: %s", stream.StreamID, stream.StreamKey)
-		log.Printf("[RTMP]    Duration: %s", duration.Round(time.Second))
-		log.Printf("[RTMP]    Video Packets: %d", stream.VideoPackets)
-		log.Printf("[RTMP]    Audio Packets: %d", stream.AudioPackets)
-		log.Printf("[RTMP]    Total Data: %.2f MB", float64(stream.TotalBytes)/(1024*1024))
-		log.Printf("[RTMP]    Avg Bitrate: %.2f Mbps", bitrate)
+	// Get and remove the stream from active streams
+	sh.mu.Lock()
+	stream, ok := sh.activeStreams[streamKey]
+	if ok {
+		delete(sh.activeStreams, streamKey)
+	}
+	sh.mu.Unlock()
 
-		// End stream in service
-		if err := h.streamService.EndStream(h.ctx, stream.StreamID); err != nil {
-			log.Printf("[RTMP] ❌ Failed to end stream %s: %v", stream.StreamID, err)
-		} else {
-			log.Printf("[RTMP] ✅ Stream ended successfully - ID: %s", stream.StreamID)
+	if !ok {
+		log.Printf("[RTMP] Stream key %s not found in active streams", streamKey)
+		return
+	}
+
+	// Calculate and log statistics
+	duration := time.Since(stream.StartTime)
+	bitrate := float64(stream.TotalBytes*8) / duration.Seconds() / 1000000 // Mbps
+
+	log.Printf("[RTMP] 🛑 Ending stream - ID: %s, Key: %s", stream.StreamID, stream.StreamKey)
+	log.Printf("[RTMP]    Duration: %s", duration.Round(time.Second))
+	log.Printf("[RTMP]    Video Packets: %d", stream.VideoPackets)
+	log.Printf("[RTMP]    Audio Packets: %d", stream.AudioPackets)
+	log.Printf("[RTMP]    Total Data: %.2f MB", float64(stream.TotalBytes)/(1024*1024))
+	log.Printf("[RTMP]    Avg Bitrate: %.2f Mbps", bitrate)
+
+	// Stop transcoder if it was running
+	if sh.transcoderManager != nil {
+		if err := sh.transcoderManager.StopTranscoder(stream.StreamID); err != nil {
+			log.Printf("[RTMP] ⚠️  Failed to stop transcoder: %v", err)
 		}
-
-		// Remove from active streams
-		h.mu.Lock()
-		delete(h.activeStreams, stream.StreamKey)
-		h.mu.Unlock()
 	}
+
+	// End stream in service
+	if err := sh.streamService.EndStream(sh.ctx, stream.StreamID); err != nil {
+		log.Printf("[RTMP] ❌ Failed to end stream %s: %v", stream.StreamID, err)
+	} else {
+		log.Printf("[RTMP] ✅ Stream ended successfully - ID: %s", stream.StreamID)
+	}
+
+	// Clear stream key and FLV writer for this connection
+	h.mu.Lock()
+	h.streamKey = ""
+	h.flvWriter = nil
+	h.streamID = uuid.Nil
+	h.mu.Unlock()
 }
 
 // GetActiveStreams returns the list of currently active streams

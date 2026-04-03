@@ -50,26 +50,27 @@ func (s *Server) Start() error {
 			}()
 
 			log.Printf("[RTMP] Incoming connection from %s", conn.RemoteAddr())
-			log.Printf("[RTMP] Step 1: Creating handler reference")
 
-			handler := s.handler
-			if handler == nil {
+			if s.handler == nil {
 				log.Printf("[RTMP] ERROR: Handler is nil!")
 				return conn, nil
 			}
-			log.Printf("[RTMP] Step 2: Handler OK")
 
-			// Return connection config with shared handler
+			// Create a new ConnectionHandler for this specific connection
+			// This ensures each connection tracks its own stream independently
+			connHandler := s.handler.NewConnectionHandler()
+			log.Printf("[RTMP] Created new connection handler for %s", conn.RemoteAddr())
+
+			// Return connection config with per-connection handler
 			config := &rtmp.ConnConfig{
-				Handler: handler,
+				Handler: connHandler,
 
-				// Control state configuration (same as example)
+				// Control state configuration
 				ControlState: rtmp.StreamControlStateConfig{
 					DefaultBandwidthWindowSize: 6 * 1024 * 1024 / 8,
 				},
 			}
 
-			log.Printf("[RTMP] Step 3: Config created, returning")
 			return conn, config
 		},
 	})

@@ -21,6 +21,7 @@ import (
 	"github.com/kiseki/stream-service/internal/rtmp"
 	"github.com/kiseki/stream-service/internal/service"
 	"github.com/kiseki/stream-service/internal/storage"
+	"github.com/kiseki/stream-service/internal/transcoder"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/redis/go-redis/v9"
@@ -131,8 +132,12 @@ func main() {
 	// Start gRPC server in background
 	go startGRPCServer(cfg, repo)
 
+	// Initialize transcoder manager for HLS conversion
+	transcoderManager := transcoder.NewManager(cfg)
+	log.Println("Transcoder manager initialized")
+
 	// Initialize and start RTMP server for stream ingestion
-	rtmpHandler := rtmp.NewStreamHandler(streamService)
+	rtmpHandler := rtmp.NewStreamHandler(streamService, transcoderManager)
 	rtmpServer := rtmp.NewServer(":"+cfg.RTMPPort, rtmpHandler)
 	go func() {
 		log.Printf("Starting RTMP server on port %s", cfg.RTMPPort)
@@ -155,6 +160,27 @@ func main() {
 			"time":    time.Now().Format(time.RFC3339),
 		})
 	})
+
+	// HLS streaming files - serve from /tmp/hls/{stream_id}/
+	// This allows frontend to fetch .m3u8 playlists and .ts segments
+	r.GET("/hls/*filepath", func(c *gin.Context) {
+		filepath := c.Param("filepath")
+
+		// Set appropriate cache headers for HLS files
+		if len(filepath) >= 5 && filepath[len(filepath)-5:] == ".m3u8" {
+			// Playlists should not be cached (they update frequently)
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+		} else if len(filepath) >= 3 && filepath[len(filepath)-3:] == ".ts" {
+			// Segments can be cached (they are immutable once created)
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
+		// Serve the file
+		c.File("/tmp/hls" + filepath)
+	})
+	log.Println("HLS file server mounted at /hls with cache headers")
 
 	// API routes
 	v1 := r.Group("/streams")
@@ -215,6 +241,9 @@ func main() {
 	if err := rtmpServer.Stop(); err != nil {
 		log.Printf("RTMP server shutdown error: %v", err)
 	}
+
+	// Stop all transcoders
+	transcoderManager.StopAll()
 
 	log.Println("Server exited")
 }

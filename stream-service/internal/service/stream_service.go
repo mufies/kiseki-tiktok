@@ -427,9 +427,10 @@ func (s *StreamService) GetPlaybackURL(ctx context.Context, id uuid.UUID) (strin
 		return "", fmt.Errorf("stream is not live")
 	}
 
-	// TODO: Implement HLS transcoding in the built-in RTMP server
-	// For now, return the RTMP URL that can be used with a player that supports RTMP
-	playbackURL := fmt.Sprintf("rtmp://localhost:%s/live/%s", s.config.RTMPPort, stream.StreamKey)
+	// Return HLS playback URL
+	// If ABR is enabled, this will point to master.m3u8
+	// Otherwise, it will point to the single playlist.m3u8
+	playbackURL := fmt.Sprintf("http://localhost:%s/hls/%s/master.m3u8", s.config.ServerPort, id.String())
 
 	return playbackURL, nil
 }

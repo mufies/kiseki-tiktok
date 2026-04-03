@@ -59,6 +59,12 @@ type Config struct {
 	EnableTranscoding  bool
 	FFmpegPath         string
 	TranscodingPresets []TranscodingPreset
+
+	// ABR (Adaptive Bitrate) Configuration
+	EnableABR      bool
+	ABRVariants    []string // Names of variants to enable (e.g., ["1080p", "720p", "480p", "360p"])
+	HWAccelEnabled bool
+	HWAccelType    string // "nvenc", "qsv", "videotoolbox", etc.
 }
 
 type KafkaTopics struct {
@@ -174,6 +180,12 @@ func Load() *Config {
 		EnableTranscoding:  getEnv("ENABLE_TRANSCODING", "true") == "true",
 		FFmpegPath:         getEnv("FFMPEG_PATH", "ffmpeg"),
 		TranscodingPresets: transcodingPresets,
+
+		// ABR
+		EnableABR:      getEnv("ENABLE_ABR", "true") == "true",
+		ABRVariants:    []string{"1080p", "720p", "480p", "360p"}, // Default all variants
+		HWAccelEnabled: getEnv("HW_ACCEL_ENABLED", "false") == "true",
+		HWAccelType:    getEnv("HW_ACCEL_TYPE", ""), // e.g., "nvenc", "qsv", "videotoolbox"
 	}
 }
 
