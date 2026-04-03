@@ -1,7 +1,7 @@
 FROM golang:alpine
 
-# Install git and other build dependencies
-RUN apk add --no-cache git
+# Install git, ffmpeg and other build dependencies
+RUN apk add --no-cache git ffmpeg
 
 # Set working directory
 WORKDIR /app

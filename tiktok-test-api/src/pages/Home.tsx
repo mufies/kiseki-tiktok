@@ -23,6 +23,13 @@ export default function Home() {
           {user && (
             <div className="flex items-center gap-4">
               <button
+                onClick={() => navigate('/live')}
+                className="px-4 py-2 bg-purple-600 text-white font-semibold text-sm rounded-lg flex items-center gap-2 drop-shadow-lg hover:bg-purple-700 transition"
+              >
+                <Radio className="w-4 h-4" />
+                Live
+              </button>
+              <button
                 onClick={() => navigate('/go-live')}
                 className="px-4 py-2 bg-red-600 text-white font-semibold text-sm rounded-lg flex items-center gap-2 drop-shadow-lg hover:bg-red-700 transition"
               >

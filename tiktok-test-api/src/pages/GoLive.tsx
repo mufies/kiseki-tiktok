@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, Radio, Users, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Copy, Radio, Users, CheckCircle, AlertCircle } from 'lucide-react';
 import { streamAPI } from '../api/stream';
 import type { Stream } from '../api/stream';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,12 @@ import StreamPlayer from '../components/StreamPlayer';
 import StreamChat from '../components/StreamChat';
 
 const RTMP_SERVER = import.meta.env.VITE_RTMP_URL || 'rtmp://localhost:1935/live';
+const STREAM_SERVICE_URL = import.meta.env.VITE_STREAM_SERVICE_URL || 'http://localhost:8083';
+
+// Helper to construct HLS URL from stream ID
+const getHlsUrlFromStreamId = (streamId: string): string => {
+  return `${STREAM_SERVICE_URL}/hls/${streamId}/master.m3u8`;
+};
 
 export default function GoLive() {
   const navigate = useNavigate();
@@ -22,6 +28,8 @@ export default function GoLive() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedRtmp, setCopiedRtmp] = useState(false);
   const [instructionTab, setInstructionTab] = useState<'obs' | 'ffmpeg'>('obs');
+  const [testingHls, setTestingHls] = useState(false);
+  const [hlsTestResult, setHlsTestResult] = useState<{success: boolean; message: string} | null>(null);
 
   // Live state
   const [hlsUrl, setHlsUrl] = useState('');
@@ -98,21 +106,75 @@ export default function GoLive() {
   };
 
   const handleStartLive = async () => {
-    if (!stream) return;
+    if (!stream) {
+      console.error('[GoLive] No stream object available');
+      return;
+    }
+
+    console.log('[GoLive] Starting live broadcast for stream:', {
+      id: stream.id,
+      status: stream.status,
+      stream_key: stream.stream_key
+    });
 
     if (stream.status !== 'live') {
-      alert('Please connect OBS and start streaming first');
+      alert('⚠️ Please connect OBS and start streaming first!\n\nYour stream status is: ' + stream.status);
       return;
     }
 
     try {
-      // Get playback URL
+      console.log('[GoLive] Stream is live, fetching playback URL...');
+
+      // Get playback URL from backend
+      // This should return: http://localhost:8083/hls/{stream_id}/master.m3u8
       const playback = await streamAPI.getPlaybackUrl(stream.id);
+
+      console.log('[GoLive] ✓ Successfully received playback URL:', playback.hls_url);
+
+      // Validate HLS URL (must be HTTP/HTTPS and contain .m3u8)
+      if (!playback.hls_url) {
+        throw new Error('Backend returned empty playback URL');
+      }
+
+      if (!playback.hls_url.startsWith('http')) {
+        throw new Error(
+          `Invalid playback URL: Expected HTTP/HTTPS URL but got "${playback.hls_url}"\n\n` +
+          `The backend should return the HLS URL (http://...), not the RTMP URL (rtmp://...)`
+        );
+      }
+
+      if (!playback.hls_url.includes('.m3u8')) {
+        console.warn('[GoLive] Warning: Playback URL does not contain .m3u8');
+      }
+
+      console.log('[GoLive] Setting HLS URL and transitioning to live view...');
       setHlsUrl(playback.hls_url);
       setStep('live');
-    } catch (error) {
-      console.error('Failed to start live:', error);
-      alert('Failed to start live stream. Please try again.');
+      console.log('[GoLive] ✓ Successfully started live broadcast!');
+
+    } catch (error: any) {
+      console.error('[GoLive] Failed to start live broadcast:', error);
+
+      let errorMessage = 'Failed to start live stream\n\n';
+
+      if (error?.message?.includes('not the RTMP URL')) {
+        errorMessage += '❌ Backend Error: The backend is returning an RTMP URL instead of an HLS URL.\n\n';
+        errorMessage += 'Expected: http://localhost:8083/hls/{stream_id}/master.m3u8\n';
+        errorMessage += `Got: ${error.message.split('"')[1] || 'unknown'}\n\n`;
+        errorMessage += 'Check the backend /streams/:id/playback endpoint.';
+      } else if (error?.message?.includes('not found')) {
+        errorMessage += '❌ Stream not found. Please create a new stream.';
+      } else if (error?.message?.includes('not live')) {
+        errorMessage += '❌ Stream is not live yet. Please start streaming from OBS first.';
+      } else {
+        errorMessage += `Error: ${error?.message || 'Unknown error'}\n\n`;
+        errorMessage += 'Please check:\n';
+        errorMessage += '1. Stream service is running (port 8083)\n';
+        errorMessage += '2. OBS is connected and streaming\n';
+        errorMessage += '3. Stream status is "live"';
+      }
+
+      alert(errorMessage);
     }
   };
 
@@ -146,6 +208,50 @@ export default function GoLive() {
     }
   };
 
+  const testHlsUrl = async () => {
+    if (!stream) return;
+
+    setTestingHls(true);
+    setHlsTestResult(null);
+
+    try {
+      const hlsUrl = getHlsUrlFromStreamId(stream.id);
+      console.log('[GoLive] Testing HLS URL:', hlsUrl);
+
+      const response = await fetch(hlsUrl, { method: 'HEAD' });
+      console.log('[GoLive] HLS test response:', response.status, response.statusText);
+
+      if (response.ok) {
+        setHlsTestResult({
+          success: true,
+          message: `✓ HLS file is accessible! (HTTP ${response.status})`
+        });
+      } else if (response.status === 404) {
+        setHlsTestResult({
+          success: false,
+          message: `✗ HLS file not found (404). The stream might not be transcoding yet. Make sure:\n` +
+                   `1. OBS is connected and streaming\n` +
+                   `2. Stream status is "live"\n` +
+                   `3. Wait 5-10 seconds for HLS transcoding to start`
+        });
+      } else {
+        setHlsTestResult({
+          success: false,
+          message: `✗ HLS request failed (HTTP ${response.status})`
+        });
+      }
+    } catch (error: any) {
+      console.error('[GoLive] HLS test failed:', error);
+      setHlsTestResult({
+        success: false,
+        message: `✗ Failed to connect: ${error.message}\n` +
+                 `Make sure the stream service is running on port 8083`
+      });
+    } finally {
+      setTestingHls(false);
+    }
+  };
+
   if (!user) return null;
 
   // Live view
@@ -176,7 +282,16 @@ export default function GoLive() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Stream preview */}
             <div className="lg:col-span-2 space-y-4">
-              <StreamPlayer hlsUrl={hlsUrl} poster={stream.thumbnail_url} />
+              {hlsUrl && hlsUrl.startsWith('http') ? (
+                <StreamPlayer hlsUrl={hlsUrl} poster={stream.thumbnail_url} />
+              ) : (
+                <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                    <p className="text-lg">Loading stream preview...</p>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-gray-900 rounded-lg p-4 flex items-center gap-4 text-white">
                 <Users className="w-5 h-5 text-purple-500" />
@@ -498,6 +613,63 @@ export default function GoLive() {
                   <Radio className="w-5 h-5" />
                   {stream.status === 'live' ? 'Start Broadcasting' : 'Waiting for Connection...'}
                 </button>
+
+                {/* Debug Info */}
+                <details className="mt-4 bg-gray-800 rounded-lg overflow-hidden">
+                  <summary className="px-4 py-3 cursor-pointer text-gray-400 text-sm hover:text-white transition-colors flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Debug Info & URL Guide
+                  </summary>
+                  <div className="px-4 py-3 border-t border-gray-700 space-y-3 text-xs">
+                    <div>
+                      <p className="text-purple-400 font-semibold mb-1">📤 RTMP Publish URL (for OBS):</p>
+                      <code className="block bg-gray-900 p-2 rounded text-gray-300 break-all">
+                        {RTMP_SERVER}/{stream.stream_key}
+                      </code>
+                      <p className="text-gray-500 mt-1">Use this in OBS to send your stream to the server</p>
+                    </div>
+
+                    <div>
+                      <p className="text-green-400 font-semibold mb-1">📺 HLS Playback URL (for viewers):</p>
+                      <code className="block bg-gray-900 p-2 rounded text-gray-300 break-all">
+                        {getHlsUrlFromStreamId(stream.id)}
+                      </code>
+                      <p className="text-gray-500 mt-1">This is the URL that browsers will play</p>
+
+                      {/* Test HLS URL button */}
+                      <button
+                        onClick={testHlsUrl}
+                        disabled={testingHls}
+                        className="mt-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
+                      >
+                        {testingHls ? 'Testing...' : '🔍 Test HLS URL'}
+                      </button>
+
+                      {/* Test result */}
+                      {hlsTestResult && (
+                        <div className={`mt-2 p-2 rounded text-xs ${
+                          hlsTestResult.success
+                            ? 'bg-green-900/50 border border-green-700 text-green-300'
+                            : 'bg-red-900/50 border border-red-700 text-red-300'
+                        }`}>
+                          <pre className="whitespace-pre-wrap">{hlsTestResult.message}</pre>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-gray-700 pt-3">
+                      <p className="text-yellow-400 font-semibold mb-2">🔍 Important:</p>
+                      <ul className="text-gray-400 space-y-1 list-disc list-inside">
+                        <li>RTMP URL is for <span className="text-white">publishing</span> (OBS → Server)</li>
+                        <li>HLS URL is for <span className="text-white">playback</span> (Server → Browser)</li>
+                        <li>Browser cannot play RTMP URLs</li>
+                        <li>OBS cannot use HLS URLs</li>
+                        <li>Stream ID: <code className="bg-gray-900 px-1 rounded">{stream.id}</code></li>
+                        <li>Stream Status: <code className="bg-gray-900 px-1 rounded">{stream.status}</code></li>
+                      </ul>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
           </div>

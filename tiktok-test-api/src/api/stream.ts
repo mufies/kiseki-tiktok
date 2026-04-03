@@ -84,14 +84,65 @@ export const streamAPI = {
     return response.data;
   },
 
-  // Get playback URL
+  // Get playback URL - Returns HLS URL for browser playback
+  // API Endpoint: GET /streams/{stream_id}/playback
+  // Returns: { playback_url: "http://localhost:8083/hls/{stream_id}/master.m3u8", protocol: "HLS" }
   getPlaybackUrl: async (streamId: string): Promise<StreamPlayback> => {
-    const response = await axiosInstance.get<{playback_url: string; protocol: string; note: string}>(`/streams/${streamId}/playback`);
-    // Map backend response to frontend interface
-    return {
-      hls_url: response.data.playback_url,
-      rtmp_url: undefined,
-    };
+    console.log(`[Stream API] Requesting playback URL for stream ID: ${streamId}`);
+
+    try {
+      const response = await axiosInstance.get<{playback_url: string; protocol: string; note: string}>(`/streams/${streamId}/playback`);
+      console.log('[Stream API] Backend playback response:', {
+        playback_url: response.data.playback_url,
+        protocol: response.data.protocol,
+        note: response.data.note
+      });
+
+      const playbackUrl = response.data.playback_url;
+
+      // Validate that we received an HLS URL (HTTP/HTTPS with .m3u8)
+      // IMPORTANT: This should be HLS URL, NOT RTMP URL
+      // ✓ Correct: http://localhost:8083/hls/{stream_id}/master.m3u8
+      // ✗ Wrong: rtmp://localhost:1935/live/{stream_key}
+      if (!playbackUrl) {
+        throw new Error('Backend returned empty playback URL');
+      }
+
+      if (!playbackUrl.startsWith('http://') && !playbackUrl.startsWith('https://')) {
+        console.error('[Stream API] ERROR: Backend returned non-HTTP URL:', playbackUrl);
+        console.error('[Stream API] Expected HLS URL format: http://localhost:8083/hls/{stream_id}/master.m3u8');
+        console.error('[Stream API] Got protocol:', playbackUrl.split(':')[0]);
+        throw new Error(
+          `Invalid playback URL: Expected HTTP/HTTPS HLS URL but got "${playbackUrl}". ` +
+          `Make sure the backend /streams/${streamId}/playback endpoint returns the HLS URL, not RTMP URL.`
+        );
+      }
+
+      if (!playbackUrl.includes('.m3u8')) {
+        console.warn('[Stream API] Warning: Playback URL does not contain .m3u8:', playbackUrl);
+      }
+
+      console.log('[Stream API] ✓ Valid HLS URL received');
+
+      // Map backend response to frontend interface
+      return {
+        hls_url: playbackUrl,
+        rtmp_url: undefined,
+      };
+    } catch (error: any) {
+      console.error('[Stream API] Failed to get playback URL:', error);
+
+      // Provide helpful error messages
+      if (error.response?.status === 404) {
+        throw new Error(`Stream ${streamId} not found`);
+      } else if (error.response?.status === 400) {
+        throw new Error(error.response.data?.error || 'Stream is not live or not ready for playback');
+      } else if (error.message) {
+        throw error; // Re-throw our custom errors
+      } else {
+        throw new Error(`Failed to get playback URL: ${error.response?.data?.error || 'Unknown error'}`);
+      }
+    }
   },
 
   // Join stream (increment viewer count)

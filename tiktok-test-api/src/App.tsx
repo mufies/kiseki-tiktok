@@ -7,6 +7,7 @@ import UserProfile from './pages/UserProfile';
 import Upload from './pages/Upload';
 import GoLive from './pages/GoLive';
 import WatchStream from './pages/WatchStream';
+import LiveStreams from './pages/LiveStreams';
 import type { ReactNode } from 'react';
 
 interface PrivateRouteProps {
@@ -83,6 +84,14 @@ function App() {
             element={
               <PrivateRoute>
                 <WatchStream />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/live"
+            element={
+              <PrivateRoute>
+                <LiveStreams />
               </PrivateRoute>
             }
           />

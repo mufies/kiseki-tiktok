@@ -194,7 +194,16 @@ export default function WatchStream() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Stream player */}
           <div className="lg:col-span-2 space-y-4">
-            <StreamPlayer hlsUrl={hlsUrl} poster={stream.thumbnail_url} />
+            {hlsUrl && hlsUrl.startsWith('http') ? (
+              <StreamPlayer hlsUrl={hlsUrl} poster={stream.thumbnail_url} />
+            ) : (
+              <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center">
+                <div className="text-center text-white">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                  <p className="text-lg">Loading stream...</p>
+                </div>
+              </div>
+            )}
 
             {/* Stream info */}
             <div className="bg-gray-900 rounded-lg p-4 text-white">

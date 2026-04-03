@@ -203,5 +203,11 @@ func streamModelToProto(stream *model.Stream) *streampb.Stream {
 		protoStream.EndedAt = stream.EndedAt.Unix()
 	}
 
+	// TODO: Add HLS playback URL after regenerating protobuf with new fields
+	// if stream.IsLive() {
+	// 	protoStream.PlaybackUrl = fmt.Sprintf("http://localhost:8083/hls/%s/master.m3u8", stream.ID.String())
+	// }
+	// protoStream.RtmpUrl = fmt.Sprintf("rtmp://localhost:1935/live/%s", stream.StreamKey)
+
 	return protoStream
 }
