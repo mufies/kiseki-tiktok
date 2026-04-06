@@ -166,14 +166,16 @@ func main() {
 	r.GET("/hls/*filepath", func(c *gin.Context) {
 		filepath := c.Param("filepath")
 
-		// Set appropriate cache headers for HLS files
+		// Set appropriate cache and content-type headers for HLS files
 		if len(filepath) >= 5 && filepath[len(filepath)-5:] == ".m3u8" {
 			// Playlists should not be cached (they update frequently)
+			c.Header("Content-Type", "application/vnd.apple.mpegurl")
 			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 			c.Header("Pragma", "no-cache")
 			c.Header("Expires", "0")
 		} else if len(filepath) >= 3 && filepath[len(filepath)-3:] == ".ts" {
 			// Segments can be cached (they are immutable once created)
+			c.Header("Content-Type", "video/mp2t")
 			c.Header("Cache-Control", "public, max-age=31536000, immutable")
 		}
 

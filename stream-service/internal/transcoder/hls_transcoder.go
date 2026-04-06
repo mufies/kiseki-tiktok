@@ -367,12 +367,24 @@ func (t *HLSTranscoder) buildSingleBitrateArgs() []string {
 	playlistPath := filepath.Join(t.hlsOutputDir, "playlist.m3u8")
 	segmentPattern := filepath.Join(t.hlsOutputDir, "segment_%03d.ts")
 
+	videoCodec := "libx264"
+	if t.config.HWAccelEnabled && t.config.HWAccelType != "" {
+		videoCodec = t.getHWAccelCodec()
+	}
+
 	return []string{
 		"-re",
 		"-i", "pipe:0",
-		"-c:v", "copy",
+		"-c:v", videoCodec,
+		"-preset", "veryfast",
+		"-profile:v", "high",
+		"-level", "4.0",
+		"-pix_fmt", "yuv420p",
+		"-g", fmt.Sprintf("%d", t.config.HLSSegmentTime*30), // Keyframe interval (assuming 30fps)
 		"-c:a", "aac",
 		"-b:a", "128k",
+		"-ar", "48000",
+		"-ac", "2",
 		"-f", "hls",
 		"-hls_time", fmt.Sprintf("%d", t.config.HLSSegmentTime),
 		"-hls_list_size", fmt.Sprintf("%d", t.config.HLSPlaylistLength),
@@ -399,12 +411,17 @@ func (t *HLSTranscoder) buildSingleVariantArgs(variant ABRVariant) []string {
 		"-i", "pipe:0",
 		"-c:v", videoCodec,
 		"-preset", "veryfast",
+		"-profile:v", "high",
+		"-level", "4.0",
+		"-pix_fmt", "yuv420p",
 		"-b:v", variant.VideoBitrate,
 		"-maxrate", CalculateMaxRate(variant.VideoBitrate),
 		"-bufsize", CalculateBufSize(variant.VideoBitrate),
 		"-vf", fmt.Sprintf("scale=%d:%d", variant.Width, variant.Height),
 		"-c:a", "aac",
 		"-b:a", variant.AudioBitrate,
+		"-ar", "48000",
+		"-ac", "2",
 		"-f", "hls",
 		"-hls_time", fmt.Sprintf("%d", t.config.HLSSegmentTime),
 		"-hls_list_size", fmt.Sprintf("%d", t.config.HLSPlaylistLength),
@@ -451,6 +468,9 @@ func (t *HLSTranscoder) buildMultiBitrateArgs() []string {
 		args = append(args,
 			"-c:v:"+fmt.Sprint(i), videoCodec,
 			"-preset:v:"+fmt.Sprint(i), "veryfast",
+			"-profile:v:"+fmt.Sprint(i), "high",
+			"-level:v:"+fmt.Sprint(i), "4.0",
+			"-pix_fmt:v:"+fmt.Sprint(i), "yuv420p",
 			"-b:v:"+fmt.Sprint(i), variant.VideoBitrate,
 			"-maxrate:v:"+fmt.Sprint(i), CalculateMaxRate(variant.VideoBitrate),
 			"-bufsize:v:"+fmt.Sprint(i), CalculateBufSize(variant.VideoBitrate),
@@ -461,6 +481,8 @@ func (t *HLSTranscoder) buildMultiBitrateArgs() []string {
 		args = append(args,
 			"-c:a:"+fmt.Sprint(i), "aac",
 			"-b:a:"+fmt.Sprint(i), variant.AudioBitrate,
+			"-ar:a:"+fmt.Sprint(i), "48000",
+			"-ac:a:"+fmt.Sprint(i), "2",
 		)
 
 		// HLS output settings
@@ -507,7 +529,9 @@ func (t *HLSTranscoder) GenerateMasterPlaylist() error {
 	content.WriteString("#EXT-X-VERSION:3\n")
 
 	for _, variant := range t.abrConfig.Variants {
-		content.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,NAME=\"%s\"\n",
+		// H.264 High Profile Level 4.0 = avc1.640028
+		// AAC-LC = mp4a.40.2
+		content.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=\"avc1.640028,mp4a.40.2\",NAME=\"%s\"\n",
 			variant.Bandwidth,
 			variant.Width,
 			variant.Height,

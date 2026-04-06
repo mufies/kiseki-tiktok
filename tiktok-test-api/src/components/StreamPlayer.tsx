@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { Settings } from 'lucide-react';
 
@@ -11,16 +11,167 @@ interface StreamPlayerProps {
 export default function StreamPlayer({ hlsUrl, poster, autoplay = true }: StreamPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [currentQuality, setCurrentQuality] = useState<number>(-1);
   const [qualities, setQualities] = useState<Array<{ level: number; height: number; bitrate: number }>>([]);
 
+  const MAX_RETRIES = 30; // Retry for up to 60 seconds (30 * 2s)
+  const RETRY_DELAY = 2000; // 2 seconds between retries
+
+  const initHls = useCallback((video: HTMLVideoElement, url: string) => {
+    console.log('[StreamPlayer] initHls called with URL:', url);
+
+    // Cleanup existing HLS instance
+    if (hlsRef.current) {
+      console.log('[StreamPlayer] Destroying existing HLS instance');
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const hls = new Hls({
+      debug: false,
+      enableWorker: true,
+      lowLatencyMode: false,
+      backBufferLength: 90,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      manifestLoadingTimeOut: 10000,
+      manifestLoadingMaxRetry: 2,
+      manifestLoadingRetryDelay: 500,
+      levelLoadingTimeOut: 10000,
+      levelLoadingMaxRetry: 3,
+      levelLoadingRetryDelay: 1000,
+      fragLoadingTimeOut: 20000,
+      fragLoadingMaxRetry: 6,
+      fragLoadingRetryDelay: 1000,
+    });
+
+    hlsRef.current = hls;
+
+    console.log('[StreamPlayer] Loading HLS source...');
+    hls.loadSource(url);
+    console.log('[StreamPlayer] Attaching media to video element...');
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      if (!mountedRef.current) return;
+      console.log('[StreamPlayer] Manifest parsed successfully');
+      setLoading(false);
+      setRetryMessage(null);
+      retryCountRef.current = 0;
+
+      if (hls.levels && hls.levels.length > 0) {
+        console.log('[StreamPlayer] Available levels:', hls.levels);
+        const levelData = hls.levels.map((level, index) => ({
+          level: index,
+          height: level.height,
+          bitrate: level.bitrate,
+        }));
+        setQualities(levelData);
+        setCurrentQuality(hls.currentLevel);
+      }
+
+      if (autoplay) {
+        video.play().catch((err) => {
+          if (!mountedRef.current) return;
+          // Ignore AbortError from React Strict Mode double invocation
+          if (err.name === 'AbortError') {
+            console.log('[StreamPlayer] Play aborted (likely React Strict Mode)');
+            return;
+          }
+          console.error('[StreamPlayer] Autoplay failed:', err);
+          setError('Click to play');
+        });
+      }
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+      if (!mountedRef.current) return;
+      console.log('[StreamPlayer] Level switched to:', data.level);
+      setCurrentQuality(data.level);
+    });
+
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (!mountedRef.current) return;
+      console.error('[StreamPlayer] HLS.js error:', {
+        type: data.type,
+        details: data.details,
+        fatal: data.fatal,
+      });
+
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.error('[StreamPlayer] Fatal network error:', data.details);
+
+            // Retry on manifest/level load errors (stream might not be ready yet)
+            if (
+              data.details === 'manifestLoadError' ||
+              data.details === 'levelLoadError' ||
+              data.details === 'levelLoadTimeOut'
+            ) {
+              if (retryCountRef.current < MAX_RETRIES) {
+                retryCountRef.current++;
+                const message = `Waiting for stream... (${retryCountRef.current}/${MAX_RETRIES})`;
+                console.log(`[StreamPlayer] ${message}`);
+                setRetryMessage(message);
+
+                retryTimeoutRef.current = setTimeout(() => {
+                  if (mountedRef.current && videoRef.current) {
+                    initHls(videoRef.current, url);
+                  }
+                }, RETRY_DELAY);
+              } else {
+                setError('Stream not available. Make sure OBS is streaming.');
+                setLoading(false);
+                setRetryMessage(null);
+              }
+            } else {
+              console.log('[StreamPlayer] Attempting to recover from network error...');
+              hls.startLoad();
+            }
+            break;
+
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.error('[StreamPlayer] Fatal media error:', data.details);
+            console.log('[StreamPlayer] Attempting to recover from media error...');
+            hls.recoverMediaError();
+            break;
+
+          default:
+            console.error('[StreamPlayer] Fatal error, cannot recover:', data.type, data.details);
+            setError(`Playback error: ${data.details}`);
+            setLoading(false);
+            break;
+        }
+      }
+    });
+
+    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+      console.log('[StreamPlayer] Media attached to video element');
+    });
+
+    hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+      console.log('[StreamPlayer] Level loaded:', data.level);
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, () => {
+      console.log('[StreamPlayer] Fragment loaded successfully');
+    });
+  }, [autoplay]);
+
   useEffect(() => {
+    mountedRef.current = true;
+    retryCountRef.current = 0;
+
     if (!videoRef.current || !hlsUrl) return;
 
-    // Validate HLS URL
     if (!hlsUrl.startsWith('http')) {
       setError('Invalid stream URL. Expected HTTP/HTTPS URL.');
       setLoading(false);
@@ -29,102 +180,60 @@ export default function StreamPlayer({ hlsUrl, poster, autoplay = true }: Stream
 
     const video = videoRef.current;
 
-    // Check if HLS is natively supported (Safari)
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => setLoading(false));
-      if (autoplay) {
-        video.play().catch((err) => {
-          console.error('Autoplay failed:', err);
-          setError('Click to play');
-        });
+    // Delay 10 seconds before connecting to allow FFmpeg to create playlists
+    const INITIAL_DELAY = 10000;
+    console.log(`[StreamPlayer] Waiting ${INITIAL_DELAY / 1000}s for stream to be ready...`);
+    setRetryMessage('Preparing stream... (waiting for transcoder)');
+
+    const delayTimeout = setTimeout(() => {
+      if (!mountedRef.current) {
+        console.log('[StreamPlayer] Component unmounted, skipping init');
+        return;
       }
-    }
-    // Use hls.js for other browsers
-    else if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-      });
+      console.log('[StreamPlayer] Delay complete, initializing HLS...');
+      setRetryMessage(null);
 
-      hlsRef.current = hls;
+      // Check if HLS is natively supported (Safari only)
+      // Use HLS.js for all other browsers as it's more reliable
+      const canPlayNativeHls = video.canPlayType('application/vnd.apple.mpegurl');
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLoading(false);
-
-        // Get available quality levels
-        if (hls.levels && hls.levels.length > 1) {
-          const levelData = hls.levels.map((level, index) => ({
-            level: index,
-            height: level.height,
-            bitrate: level.bitrate,
-          }));
-          setQualities(levelData);
-          setCurrentQuality(hls.currentLevel);
-        }
-
+      if (canPlayNativeHls && isSafari && !Hls.isSupported()) {
+        console.log('[StreamPlayer] Using native HLS support (Safari)');
+        video.src = hlsUrl;
+        video.addEventListener('loadedmetadata', () => {
+          if (mountedRef.current) setLoading(false);
+        });
         if (autoplay) {
           video.play().catch((err) => {
+            if (!mountedRef.current) return;
+            if (err.name === 'AbortError') return;
             console.error('Autoplay failed:', err);
             setError('Click to play');
           });
         }
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-        setCurrentQuality(data.level);
-      });
-
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        console.error('[StreamPlayer] HLS.js error:', data);
-
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('[StreamPlayer] Network error details:', data.details);
-
-              // Check if it's a 404 (file not found)
-              if (data.details === 'manifestLoadError' || data.response?.code === 404) {
-                setError(
-                  'Stream not ready yet. The HLS files are still being generated. ' +
-                  'Wait a few seconds and try refreshing, or check if OBS is still streaming.'
-                );
-                setLoading(false);
-              } else {
-                setError('Network error - attempting to recover');
-                hls.startLoad();
-              }
-              break;
-
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error('[StreamPlayer] Media error details:', data.details);
-              setError('Media error - attempting to recover');
-              hls.recoverMediaError();
-              break;
-
-            default:
-              console.error('[StreamPlayer] Fatal error:', data.details);
-              setError('Fatal error - cannot play stream');
-              hls.destroy();
-              break;
-          }
-        }
-      });
-    } else {
-      setError('HLS is not supported in this browser');
-      setLoading(false);
-    }
+      } else if (Hls.isSupported()) {
+        console.log('[StreamPlayer] Using HLS.js, calling initHls with URL:', hlsUrl);
+        initHls(video, hlsUrl);
+      } else {
+        setError('HLS is not supported in this browser');
+        setLoading(false);
+      }
+    }, INITIAL_DELAY);
 
     return () => {
+      mountedRef.current = false;
+      clearTimeout(delayTimeout);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [hlsUrl, autoplay]);
+  }, [hlsUrl, autoplay, initHls]);
 
   const handleClick = () => {
     if (videoRef.current && error === 'Click to play') {
@@ -158,6 +267,8 @@ export default function StreamPlayer({ hlsUrl, poster, autoplay = true }: Stream
         poster={poster}
         onClick={handleClick}
         playsInline
+        muted={autoplay}
+        crossOrigin="anonymous"
       />
 
       {/* Quality Selector */}
@@ -207,8 +318,11 @@ export default function StreamPlayer({ hlsUrl, poster, autoplay = true }: Stream
       )}
 
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+          {retryMessage && (
+            <p className="mt-4 text-white text-sm">{retryMessage}</p>
+          )}
         </div>
       )}
 
